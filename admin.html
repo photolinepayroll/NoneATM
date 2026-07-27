@@ -420,15 +420,24 @@
         color: #444;
       }
 
+      .agreement-heading {
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        font-size: 0.95rem;
+        color: var(--photoline-blue);
+        margin: 20px 0 6px;
+      }
+
       .agreement-text {
-        font-size: 0.85rem;
-        line-height: 1.6;
-        color: #333;
+        font-size: 1.05rem;
+        font-weight: 600;
+        line-height: 1.7;
+        color: #1a1a1a;
         background: #f9fafc;
-        border: 1px solid #eef0f5;
         border-radius: 8px;
-        padding: 14px;
-        margin: 16px 0;
+        padding: 18px 20px;
+        margin: 0 0 16px;
       }
 
       .signature-block {
@@ -461,6 +470,36 @@
         font-size: 0.75rem;
         color: #666;
         font-style: italic;
+      }
+
+      .verified-screenshot-block {
+        margin-top: 28px;
+        text-align: center;
+      }
+
+      .verified-screenshot-block .label {
+        font-weight: 600;
+        color: #444;
+        display: block;
+        margin-bottom: 8px;
+      }
+
+      .screenshot-image {
+        display: block;
+        max-width: 100%;
+        margin: 0 auto;
+        border: 1px solid #eef0f5;
+        border-radius: 8px;
+      }
+
+      .screenshot-pdf {
+        display: block;
+        width: 100%;
+        max-width: 600px;
+        height: 480px;
+        margin: 0 auto;
+        border: 1px solid #eef0f5;
+        border-radius: 8px;
       }
 
       #loginError {
@@ -590,6 +629,7 @@
           <div class="record-field"><span class="label">Contact Number</span><span id="d-contactNumber"></span></div>
           <div class="record-field"><span class="label">Verified GCash Mobile Number</span><span id="d-gcashMobileNumber"></span></div>
 
+          <div class="agreement-heading">Employee Acknowledgment and Declaration</div>
           <div class="agreement-text">
             I certify that the GCash account provided is my own Verified GCash Account. I authorize Photoline Enterprises Corporation to credit my salary and approved payments to this account until I submit a written request for changes. I understand that any delay or failed transaction caused by incorrect information I provided will be my responsibility.
           </div>
@@ -599,6 +639,12 @@
             <div class="signature-line"></div>
             <div id="d-printedName" class="printed-name"></div>
             <div class="printed-name-label">Signature over Printed Name</div>
+          </div>
+
+          <div class="verified-screenshot-block">
+            <span class="label">Verified GCash Screenshot</span>
+            <img id="d-screenshot" class="screenshot-image" hidden>
+            <embed id="d-screenshot-pdf" class="screenshot-pdf" type="application/pdf" hidden>
           </div>
         </div>
       </div>
@@ -788,6 +834,20 @@
           var signatureImg = document.getElementById('d-signature');
           if (detail.signatureBase64) {
             signatureImg.src = 'data:image/png;base64,' + detail.signatureBase64;
+          }
+
+          var screenshotImg = document.getElementById('d-screenshot');
+          var screenshotPdf = document.getElementById('d-screenshot-pdf');
+          screenshotImg.hidden = true;
+          screenshotPdf.hidden = true;
+          if (detail.screenshotBase64) {
+            if (detail.screenshotMimeType === 'application/pdf') {
+              screenshotPdf.src = 'data:application/pdf;base64,' + detail.screenshotBase64;
+              screenshotPdf.hidden = false;
+            } else {
+              screenshotImg.src = 'data:' + detail.screenshotMimeType + ';base64,' + detail.screenshotBase64;
+              screenshotImg.hidden = false;
+            }
           }
         }
 
