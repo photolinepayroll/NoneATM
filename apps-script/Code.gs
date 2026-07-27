@@ -51,6 +51,18 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
+function doPost(e) {
+  var result;
+  try {
+    var formData = JSON.parse(e.postData.contents);
+    result = submitForm(formData);
+  } catch (err) {
+    result = { success: false, errors: ['Server error: ' + err.message] };
+  }
+  return ContentService.createTextOutput(JSON.stringify(result))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
 function submitForm(formData) {
   var errors = validateSubmission_(formData);
   if (errors.length > 0) {
