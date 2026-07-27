@@ -276,6 +276,11 @@
         border-left: 4px solid var(--gcash-blue);
       }
 
+      .admin-topbar-actions {
+        display: flex;
+        gap: 10px;
+      }
+
       .admin-topbar-title strong {
         display: block;
         font-size: 1.05rem;
@@ -514,6 +519,11 @@
         padding: 20px 0;
       }
 
+      @page {
+        size: letter portrait;
+        margin: 0.5in;
+      }
+
       @media print {
         .no-print {
           display: none !important;
@@ -552,7 +562,10 @@
             <strong>GCash Payroll Enrollment</strong>
             <span>Admin Dashboard</span>
           </div>
-          <button type="button" id="logoutBtn" class="back-btn">Log Out</button>
+          <div class="admin-topbar-actions">
+            <button type="button" id="refreshBtn" class="back-btn">Refresh</button>
+            <button type="button" id="logoutBtn" class="back-btn">Log Out</button>
+          </div>
         </div>
 
         <div class="stat-grid no-print">
@@ -684,13 +697,18 @@
           document.getElementById('detailSection').hidden = true;
         }
 
-        function attemptLogin(code) {
-          passcode = code;
+        function refreshSubmissions() {
           return callBackend('listSubmissions', {}).then(function (rows) {
             allRows = rows;
-            sessionStorage.setItem('gcashAdminPasscode', passcode);
             populateBranchFilter(rows);
             renderDashboard(rows);
+          });
+        }
+
+        function attemptLogin(code) {
+          passcode = code;
+          return refreshSubmissions().then(function () {
+            sessionStorage.setItem('gcashAdminPasscode', passcode);
             showDashboard();
           });
         }
@@ -708,6 +726,20 @@
             .then(function () {
               btn.disabled = false;
               btn.textContent = 'Log In';
+            });
+        });
+
+        document.getElementById('refreshBtn').addEventListener('click', function () {
+          var btn = this;
+          btn.disabled = true;
+          btn.textContent = 'Refreshing...';
+          refreshSubmissions()
+            .catch(function (err) {
+              alert('Could not refresh: ' + err.message);
+            })
+            .then(function () {
+              btn.disabled = false;
+              btn.textContent = 'Refresh';
             });
         });
 
@@ -857,7 +889,12 @@
         });
 
         document.getElementById('printBtn').addEventListener('click', function () {
-          window.print();
+          if (document.activeElement) {
+            document.activeElement.blur();
+          }
+          setTimeout(function () {
+            window.print();
+          }, 50);
         });
 
         var savedPasscode = sessionStorage.getItem('gcashAdminPasscode');
