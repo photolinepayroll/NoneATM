@@ -699,6 +699,7 @@
               <input type="date" id="filterTo">
             </div>
             <button type="button" id="clearFilterBtn" class="back-btn">Clear Filters</button>
+            <button type="button" id="exportCsvBtn" class="print-btn">Export to CSV</button>
           </div>
         </div>
 
@@ -927,6 +928,44 @@
           document.getElementById('filterFrom').value = '';
           document.getElementById('filterTo').value = '';
           applyFiltersAndRender();
+        });
+
+        function csvCell(value) {
+          var str = String(value == null ? '' : value);
+          if (/[",\r\n]/.test(str)) {
+            str = '"' + str.replace(/"/g, '""') + '"';
+          }
+          return str;
+        }
+
+        function csvMobileNumberCell(value) {
+          var str = String(value == null ? '' : value).replace(/"/g, '""');
+          return '="' + str + '"';
+        }
+
+        document.getElementById('exportCsvBtn').addEventListener('click', function () {
+          var headers = ['Date', 'Employee Name', 'Branch/Department', 'Contact Number', 'GCash Mobile Number'];
+          var lines = [headers.map(csvCell).join(',')];
+
+          currentFilteredRows.forEach(function (row) {
+            lines.push([
+              csvCell(row.timestamp),
+              csvCell(row.employeeName),
+              csvCell(row.branchDepartment),
+              csvMobileNumberCell(row.contactNumber),
+              csvMobileNumberCell(row.gcashMobileNumber)
+            ].join(','));
+          });
+
+          var blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = 'gcash-payroll-enrollment-' + new Date().toISOString().slice(0, 10) + '.csv';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
         });
 
         function renderList() {

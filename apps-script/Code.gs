@@ -158,6 +158,14 @@ function validateSubmission_(formData) {
     }
   });
 
+  var mobileNumberPattern = /^09\d{9}$/;
+  if (formData.contactNumber && !mobileNumberPattern.test(String(formData.contactNumber).trim())) {
+    errors.push('contactNumber must be an 11-digit mobile number starting with 09.');
+  }
+  if (formData.gcashMobileNumber && !mobileNumberPattern.test(String(formData.gcashMobileNumber).trim())) {
+    errors.push('gcashMobileNumber must be an 11-digit mobile number starting with 09.');
+  }
+
   if (!formData.declarationAccepted) {
     errors.push('Declaration must be accepted.');
   }

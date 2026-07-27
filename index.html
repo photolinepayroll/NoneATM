@@ -316,11 +316,13 @@
           <span class="error" id="err-branchDepartment"></span>
 
           <label for="contactNumber">Contact Number <span class="required" aria-hidden="true">*</span></label>
-          <input type="tel" id="contactNumber" name="contactNumber" required aria-describedby="err-contactNumber">
+          <p class="hint">11-digit mobile number starting with 09 (e.g. 09171234567).</p>
+          <input type="tel" id="contactNumber" name="contactNumber" inputmode="numeric" maxlength="11" pattern="09[0-9]{9}" required aria-describedby="err-contactNumber">
           <span class="error" id="err-contactNumber"></span>
 
           <label for="gcashMobileNumber">Verified GCash Mobile Number <span class="required" aria-hidden="true">*</span></label>
-          <input type="tel" id="gcashMobileNumber" name="gcashMobileNumber" required aria-describedby="err-gcashMobileNumber">
+          <p class="hint">11-digit mobile number starting with 09 (e.g. 09171234567).</p>
+          <input type="tel" id="gcashMobileNumber" name="gcashMobileNumber" inputmode="numeric" maxlength="11" pattern="09[0-9]{9}" required aria-describedby="err-gcashMobileNumber">
           <span class="error" id="err-gcashMobileNumber"></span>
         </section>
 
@@ -509,8 +511,17 @@
           var valid = true;
           if (!employeeName) { setError('employeeName', 'Required.'); valid = false; }
           if (!branchDepartment) { setError('branchDepartment', 'Required.'); valid = false; }
-          if (!contactNumber) { setError('contactNumber', 'Required.'); valid = false; }
-          if (!gcashMobileNumber) { setError('gcashMobileNumber', 'Required.'); valid = false; }
+          var mobileNumberPattern = /^09\d{9}$/;
+          if (!contactNumber) {
+            setError('contactNumber', 'Required.'); valid = false;
+          } else if (!mobileNumberPattern.test(contactNumber)) {
+            setError('contactNumber', 'Enter an 11-digit mobile number starting with 09.'); valid = false;
+          }
+          if (!gcashMobileNumber) {
+            setError('gcashMobileNumber', 'Required.'); valid = false;
+          } else if (!mobileNumberPattern.test(gcashMobileNumber)) {
+            setError('gcashMobileNumber', 'Enter an 11-digit mobile number starting with 09.'); valid = false;
+          }
           if (!screenshotFile) { setError('screenshot', 'Screenshot is required.'); valid = false; }
           if (!declarationAccepted) { setError('declarationAccepted', 'You must accept the declaration.'); valid = false; }
           if (!hasSignature || isSignatureBlank()) { setError('signature', 'Signature is required.'); valid = false; }
