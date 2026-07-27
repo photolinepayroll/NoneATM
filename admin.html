@@ -407,6 +407,13 @@
         border: none;
       }
 
+      .print-fallback-hint {
+        display: inline-block;
+        font-size: 0.8rem;
+        color: #666;
+        margin: 8px 0 0;
+      }
+
       .record-header {
         text-align: center;
         margin-bottom: 20px;
@@ -627,6 +634,7 @@
         <div class="no-print" style="margin-bottom:16px;">
           <button type="button" id="backBtn" class="back-btn">&larr; Back to dashboard</button>
           <button type="button" id="printBtn" class="print-btn">Print / Save as PDF</button>
+          <p class="print-fallback-hint">If nothing opens, press <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac) instead.</p>
         </div>
 
         <div class="admin-card">
@@ -889,15 +897,7 @@
         });
 
         document.getElementById('printBtn').addEventListener('click', function () {
-          console.log('[gcash-admin] printBtn click fired');
-          console.log('[gcash-admin] typeof window.print =', typeof window.print);
-          console.log('[gcash-admin] document.readyState =', document.readyState);
-          try {
-            window.print();
-            console.log('[gcash-admin] window.print() returned normally, no exception');
-          } catch (err) {
-            console.error('[gcash-admin] window.print() threw:', err);
-          }
+          window.print();
         });
 
         var savedPasscode = sessionStorage.getItem('gcashAdminPasscode');
