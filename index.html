@@ -208,6 +208,79 @@
     min-height: 1em;
   }
 
+  .screenshot-sample-caption {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #444;
+    margin: 10px 0 8px;
+  }
+
+  .screenshot-sample-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: 380px;
+    padding: 18px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--gcash-blue), var(--gcash-blue-dark));
+    color: #fff;
+  }
+
+  .screenshot-sample-avatar {
+    flex-shrink: 0;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: #fff;
+    color: var(--gcash-blue-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.1rem;
+  }
+
+  .screenshot-sample-name {
+    font-weight: 700;
+    font-size: 1rem;
+  }
+
+  .screenshot-sample-number {
+    font-size: 0.85rem;
+    opacity: 0.85;
+  }
+
+  .screenshot-sample-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 4px 10px;
+    border: 2px solid #ffe14d;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.8rem;
+  }
+
+  .screenshot-sample-badge .check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    color: var(--gcash-blue-dark);
+    font-size: 0.7rem;
+  }
+
+  .screenshot-sample-note {
+    font-size: 0.8rem;
+    color: #666;
+    font-style: italic;
+    margin: 8px 0 0;
+  }
+
   .confirmation {
     background: #fff;
     border-radius: 14px;
@@ -256,6 +329,18 @@
           <label for="screenshot">Upload Screenshot of Verified GCash Account <span class="required" aria-hidden="true">*</span></label>
           <p class="hint">Screenshot must clearly show your Employee Full Name, Verified Status, and GCash Mobile Number.</p>
           <p class="hint">Allowed file types: JPG, PNG, PDF. Maximum size: 10MB.</p>
+
+          <p class="screenshot-sample-caption">Sample of a valid screenshot:</p>
+          <div class="screenshot-sample-card">
+            <div class="screenshot-sample-avatar">JD</div>
+            <div>
+              <div class="screenshot-sample-name">Juan Dela Cruz</div>
+              <div class="screenshot-sample-number">09123456789</div>
+              <div class="screenshot-sample-badge"><span class="check">&check;</span> Fully Verified</div>
+            </div>
+          </div>
+          <p class="screenshot-sample-note">This is only a sample layout (not a real account). Your own screenshot must show your own Full Name, Mobile Number, and Verified status like this.</p>
+
           <input type="file" id="screenshot" name="screenshot" accept=".jpg,.jpeg,.png,.pdf" required aria-describedby="err-screenshot">
           <span class="error" id="err-screenshot"></span>
         </section>
