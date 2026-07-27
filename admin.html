@@ -889,12 +889,15 @@
         });
 
         document.getElementById('printBtn').addEventListener('click', function () {
-          if (document.activeElement) {
-            document.activeElement.blur();
-          }
-          setTimeout(function () {
+          console.log('[gcash-admin] printBtn click fired');
+          console.log('[gcash-admin] typeof window.print =', typeof window.print);
+          console.log('[gcash-admin] document.readyState =', document.readyState);
+          try {
             window.print();
-          }, 50);
+            console.log('[gcash-admin] window.print() returned normally, no exception');
+          } catch (err) {
+            console.error('[gcash-admin] window.print() threw:', err);
+          }
         });
 
         var savedPasscode = sessionStorage.getItem('gcashAdminPasscode');
