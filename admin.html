@@ -722,7 +722,7 @@
 
       <div id="detailSection" hidden>
         <div class="no-print" style="margin-bottom:16px;">
-          <button type="button" id="backBtn" class="back-btn">&larr; Back to dashboard</button>
+          <button type="button" id="backBtn" class="back-btn">Close</button>
           <p class="print-fallback-hint">Press <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac) to print or save as PDF.</p>
         </div>
 
@@ -761,7 +761,7 @@
 
       <div id="bulkPrintSection" hidden>
         <div class="no-print" style="margin-bottom:16px;">
-          <button type="button" id="bulkBackBtn" class="back-btn">&larr; Back to dashboard</button>
+          <button type="button" id="bulkBackBtn" class="back-btn">Close</button>
           <p class="print-fallback-hint">Press <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac) to print or save as PDF &mdash; each selected record prints on its own page.</p>
         </div>
         <div id="bulkPrintCards"></div>
@@ -811,6 +811,8 @@
         var passcode = '';
         var allRows = [];
         var selectedRowIndexes = {};
+        var directRowIndex = new URLSearchParams(location.search).get('rowIndex');
+        var directRowIndexes = new URLSearchParams(location.search).get('rowIndexes');
 
         function callBackend(action, extra) {
           var payload = Object.assign({ action: action, passcode: passcode }, extra);
@@ -865,6 +867,14 @@
           btn.disabled = true;
           btn.textContent = 'Logging in...';
           attemptLogin(code)
+            .then(function () {
+              if (directRowIndexes !== null) {
+                document.getElementById('dashboardSection').hidden = true;
+                openDirectBulkPrint(directRowIndexes);
+              } else if (directRowIndex !== null) {
+                viewDetail(Number(directRowIndex));
+              }
+            })
             .catch(function () {
               document.getElementById('loginError').textContent = 'Incorrect passcode.';
             })
@@ -1048,7 +1058,11 @@
             var tdBtn = document.createElement('td');
             var btn = document.createElement('button');
             btn.textContent = 'View / Print';
-            btn.addEventListener('click', function () { viewDetail(row.rowIndex); });
+            btn.addEventListener('click', function () {
+              var url = new URL(location.href);
+              url.search = '?rowIndex=' + row.rowIndex;
+              window.open(url.toString(), 'gcashPrint' + row.rowIndex);
+            });
             tdBtn.appendChild(btn);
             tr.appendChild(tdBtn);
 
@@ -1147,8 +1161,7 @@
         }
 
         document.getElementById('backBtn').addEventListener('click', function () {
-          document.getElementById('detailSection').hidden = true;
-          document.getElementById('dashboardSection').hidden = false;
+          window.close();
         });
 
         function renderBulkPrint(details) {
@@ -1182,44 +1195,56 @@
           });
         }
 
+        function openDirectBulkPrint(rowIndexesParam) {
+          var rowIndexes = rowIndexesParam.split(',').map(Number);
+          Promise.all(rowIndexes.map(function (rowIndex) {
+            return callBackend('getSubmissionDetail', { rowIndex: rowIndex });
+          }))
+            .then(function (details) {
+              renderBulkPrint(details);
+              document.getElementById('bulkPrintSection').hidden = false;
+            })
+            .catch(function (err) {
+              alert('Could not load the selected records: ' + err.message);
+            });
+        }
+
         document.getElementById('printSelectedBtn').addEventListener('click', function () {
           var rowIndexes = Object.keys(selectedRowIndexes).map(Number);
           if (rowIndexes.length === 0) {
             return;
           }
 
-          var btn = this;
-          btn.disabled = true;
-          btn.textContent = 'Loading...';
-
-          Promise.all(rowIndexes.map(function (rowIndex) {
-            return callBackend('getSubmissionDetail', { rowIndex: rowIndex });
-          }))
-            .then(function (details) {
-              renderBulkPrint(details);
-              document.getElementById('dashboardSection').hidden = true;
-              document.getElementById('bulkPrintSection').hidden = false;
-            })
-            .catch(function (err) {
-              alert('Could not load the selected records: ' + err.message);
-            })
-            .then(function () {
-              btn.disabled = false;
-              updatePrintSelectedButton();
-            });
+          var url = new URL(location.href);
+          url.search = '?rowIndexes=' + rowIndexes.join(',');
+          window.open(url.toString(), 'gcashBulkPrint');
         });
 
         document.getElementById('bulkBackBtn').addEventListener('click', function () {
-          document.getElementById('bulkPrintSection').hidden = true;
-          document.getElementById('dashboardSection').hidden = false;
+          window.close();
         });
 
-        var savedPasscode = sessionStorage.getItem('gcashAdminPasscode');
-        if (savedPasscode) {
-          attemptLogin(savedPasscode).catch(function () {
-            sessionStorage.removeItem('gcashAdminPasscode');
+        if (directRowIndex !== null || directRowIndexes !== null) {
+          var directSavedPasscode = sessionStorage.getItem('gcashAdminPasscode');
+          if (directSavedPasscode) {
+            passcode = directSavedPasscode;
+            document.getElementById('loginSection').hidden = true;
+            if (directRowIndexes !== null) {
+              openDirectBulkPrint(directRowIndexes);
+            } else {
+              viewDetail(Number(directRowIndex));
+            }
+          } else {
             showLogin();
-          });
+          }
+        } else {
+          var savedPasscode = sessionStorage.getItem('gcashAdminPasscode');
+          if (savedPasscode) {
+            attemptLogin(savedPasscode).catch(function () {
+              sessionStorage.removeItem('gcashAdminPasscode');
+              showLogin();
+            });
+          }
         }
       })();
     </script>
