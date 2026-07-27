@@ -509,6 +509,14 @@
         margin-bottom: 8px;
       }
 
+      .bulk-record-card {
+        page-break-after: always;
+      }
+
+      .bulk-record-card:last-child {
+        page-break-after: auto;
+      }
+
       .screenshot-image {
         max-width: 100%;
         margin: 0 auto;
@@ -700,6 +708,7 @@
             </div>
             <button type="button" id="clearFilterBtn" class="back-btn">Clear Filters</button>
             <button type="button" id="exportCsvBtn" class="print-btn">Export to CSV</button>
+            <button type="button" id="printSelectedBtn" class="print-btn" disabled>Print Selected (0)</button>
           </div>
         </div>
 
@@ -707,6 +716,7 @@
           <table class="admin-table">
             <thead>
               <tr>
+                <th><input type="checkbox" id="selectAllCheckbox" aria-label="Select all rows on this page"></th>
                 <th>Date</th>
                 <th>Employee Name</th>
                 <th>Branch/Department</th>
@@ -765,7 +775,50 @@
           </div>
         </div>
       </div>
+
+      <div id="bulkPrintSection" hidden>
+        <div class="no-print" style="margin-bottom:16px;">
+          <button type="button" id="bulkBackBtn" class="back-btn">&larr; Back to dashboard</button>
+          <p class="print-fallback-hint">Press <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac) to print or save as PDF &mdash; each selected record prints on its own page.</p>
+        </div>
+        <div id="bulkPrintCards"></div>
+      </div>
     </div>
+
+    <template id="recordCardTemplate">
+      <div class="admin-card bulk-record-card">
+        <div class="record-header">
+          <img class="logo">
+          <h1 style="margin:0;">GCash Payroll Enrollment Record</h1>
+          <p class="purpose">Photoline Enterprises Corporation</p>
+        </div>
+
+        <div class="record-field"><span class="label">Date Submitted</span><span class="f-timestamp"></span></div>
+        <div class="record-field"><span class="label">Employee Name</span><span class="f-employeeName"></span></div>
+        <div class="record-field"><span class="label">Branch/Department</span><span class="f-branchDepartment"></span></div>
+        <div class="record-field"><span class="label">Contact Number</span><span class="f-contactNumber"></span></div>
+        <div class="record-field"><span class="label">Verified GCash Mobile Number</span><span class="f-gcashMobileNumber"></span></div>
+
+        <div class="agreement-heading">Employee Acknowledgment and Declaration</div>
+        <div class="agreement-text">
+          I hereby certify that the GCash account information provided is my own <strong>Verified GCash Account</strong>. I authorize <strong>Photoline Enterprises Corporation</strong> to credit my salary and any approved payments to this account until I submit a written request for any changes.<br><br>
+          I understand and acknowledge that any delay, failed transaction, or loss resulting from incorrect, incomplete, or inaccurate information that I have provided shall be my sole responsibility.
+        </div>
+
+        <div class="signature-block">
+          <img class="signature-image f-signature">
+          <div class="signature-line"></div>
+          <div class="printed-name f-printedName"></div>
+          <div class="printed-name-label">Signature over Printed Name</div>
+        </div>
+
+        <div class="verified-screenshot-block">
+          <span class="label">Verified GCash Screenshot</span>
+          <img class="screenshot-image f-screenshot" hidden>
+          <embed class="screenshot-pdf f-screenshot-pdf" type="application/pdf" hidden>
+        </div>
+      </div>
+    </template>
 
     <script>
       (function () {
@@ -775,6 +828,7 @@
         var currentFilteredRows = [];
         var passcode = '';
         var allRows = [];
+        var selectedRowIndexes = {};
 
         function callBackend(action, extra) {
           var payload = Object.assign({ action: action, passcode: passcode }, extra);
@@ -796,12 +850,14 @@
           document.getElementById('loginSection').hidden = false;
           document.getElementById('dashboardSection').hidden = true;
           document.getElementById('detailSection').hidden = true;
+          document.getElementById('bulkPrintSection').hidden = true;
         }
 
         function showDashboard() {
           document.getElementById('loginSection').hidden = true;
           document.getElementById('dashboardSection').hidden = false;
           document.getElementById('detailSection').hidden = true;
+          document.getElementById('bulkPrintSection').hidden = true;
         }
 
         function refreshSubmissions() {
@@ -985,6 +1041,22 @@
           pageRows.forEach(function (row) {
             var tr = document.createElement('tr');
 
+            var tdCheckbox = document.createElement('td');
+            var checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = !!selectedRowIndexes[row.rowIndex];
+            checkbox.addEventListener('change', function () {
+              if (checkbox.checked) {
+                selectedRowIndexes[row.rowIndex] = true;
+              } else {
+                delete selectedRowIndexes[row.rowIndex];
+              }
+              updateSelectAllCheckbox(pageRows);
+              updatePrintSelectedButton();
+            });
+            tdCheckbox.appendChild(checkbox);
+            tr.appendChild(tdCheckbox);
+
             [row.timestamp, row.employeeName, row.branchDepartment, row.contactNumber, row.gcashMobileNumber].forEach(function (val) {
               var td = document.createElement('td');
               td.textContent = val;
@@ -1001,12 +1073,48 @@
             body.appendChild(tr);
           });
 
+          updateSelectAllCheckbox(pageRows);
+          updatePrintSelectedButton();
+
           document.getElementById('pagination').hidden = totalRows <= PAGE_SIZE;
           document.getElementById('pageInfo').textContent =
             'Page ' + currentPage + ' of ' + totalPages + ' (' + totalRows + ' total)';
           document.getElementById('prevPageBtn').disabled = currentPage <= 1;
           document.getElementById('nextPageBtn').disabled = currentPage >= totalPages;
         }
+
+        function updateSelectAllCheckbox(pageRows) {
+          var selectAllCheckbox = document.getElementById('selectAllCheckbox');
+          if (pageRows.length === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+            return;
+          }
+          var selectedCount = pageRows.filter(function (row) { return !!selectedRowIndexes[row.rowIndex]; }).length;
+          selectAllCheckbox.checked = selectedCount === pageRows.length;
+          selectAllCheckbox.indeterminate = selectedCount > 0 && selectedCount < pageRows.length;
+        }
+
+        function updatePrintSelectedButton() {
+          var count = Object.keys(selectedRowIndexes).length;
+          var btn = document.getElementById('printSelectedBtn');
+          btn.textContent = 'Print Selected (' + count + ')';
+          btn.disabled = count === 0;
+        }
+
+        document.getElementById('selectAllCheckbox').addEventListener('change', function () {
+          var checked = this.checked;
+          var start = (currentPage - 1) * PAGE_SIZE;
+          var pageRows = currentFilteredRows.slice(start, start + PAGE_SIZE);
+          pageRows.forEach(function (row) {
+            if (checked) {
+              selectedRowIndexes[row.rowIndex] = true;
+            } else {
+              delete selectedRowIndexes[row.rowIndex];
+            }
+          });
+          renderList();
+        });
 
         document.getElementById('prevPageBtn').addEventListener('click', function () {
           if (currentPage > 1) {
@@ -1065,6 +1173,75 @@
 
         document.getElementById('backBtn').addEventListener('click', function () {
           document.getElementById('detailSection').hidden = true;
+          document.getElementById('dashboardSection').hidden = false;
+        });
+
+        function renderBulkPrint(details) {
+          var container = document.getElementById('bulkPrintCards');
+          container.innerHTML = '';
+          var template = document.getElementById('recordCardTemplate');
+          var logoSrc = document.querySelector('#detailSection .record-header .logo').src;
+
+          details.forEach(function (detail) {
+            var card = template.content.firstElementChild.cloneNode(true);
+            card.querySelector('.logo').src = logoSrc;
+            card.querySelector('.f-timestamp').textContent = detail.timestamp;
+            card.querySelector('.f-employeeName').textContent = detail.employeeName;
+            card.querySelector('.f-branchDepartment').textContent = detail.branchDepartment;
+            card.querySelector('.f-contactNumber').textContent = detail.contactNumber;
+            card.querySelector('.f-gcashMobileNumber').textContent = detail.gcashMobileNumber;
+            card.querySelector('.f-printedName').textContent = detail.employeeName;
+
+            var signatureImg = card.querySelector('.f-signature');
+            if (detail.signatureBase64) {
+              signatureImg.src = 'data:image/png;base64,' + detail.signatureBase64;
+            }
+
+            var screenshotImg = card.querySelector('.f-screenshot');
+            var screenshotPdf = card.querySelector('.f-screenshot-pdf');
+            if (detail.screenshotBase64) {
+              if (detail.screenshotMimeType === 'application/pdf') {
+                screenshotPdf.src = 'data:application/pdf;base64,' + detail.screenshotBase64;
+                screenshotPdf.hidden = false;
+              } else {
+                screenshotImg.src = 'data:' + detail.screenshotMimeType + ';base64,' + detail.screenshotBase64;
+                screenshotImg.hidden = false;
+              }
+            }
+
+            container.appendChild(card);
+          });
+        }
+
+        document.getElementById('printSelectedBtn').addEventListener('click', function () {
+          var rowIndexes = Object.keys(selectedRowIndexes).map(Number);
+          if (rowIndexes.length === 0) {
+            return;
+          }
+
+          var btn = this;
+          btn.disabled = true;
+          btn.textContent = 'Loading...';
+
+          Promise.all(rowIndexes.map(function (rowIndex) {
+            return callBackend('getSubmissionDetail', { rowIndex: rowIndex });
+          }))
+            .then(function (details) {
+              renderBulkPrint(details);
+              document.getElementById('dashboardSection').hidden = true;
+              document.getElementById('bulkPrintSection').hidden = false;
+            })
+            .catch(function (err) {
+              alert('Could not load the selected records: ' + err.message);
+            })
+            .then(function () {
+              btn.disabled = false;
+              updatePrintSelectedButton();
+            });
+        });
+
+        document.getElementById('bulkBackBtn').addEventListener('click', function () {
+          document.getElementById('bulkPrintSection').hidden = true;
           document.getElementById('dashboardSection').hidden = false;
         });
 
