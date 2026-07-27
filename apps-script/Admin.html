@@ -5,7 +5,7 @@
     <?!= include('Styles'); ?>
     <style>
       .admin-wrap {
-        max-width: 720px;
+        max-width: 960px;
       }
 
       .admin-card {
@@ -16,17 +16,121 @@
         box-shadow: 0 4px 14px rgba(20, 40, 120, 0.08);
       }
 
+      .admin-login-card {
+        max-width: 400px;
+        margin: 60px auto 0;
+      }
+
+      .admin-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #fff;
+        border-radius: 14px;
+        padding: 16px 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 4px 14px rgba(20, 40, 120, 0.08);
+        border-left: 4px solid var(--gcash-blue);
+      }
+
+      .admin-topbar-title strong {
+        display: block;
+        font-size: 1.05rem;
+        color: var(--photoline-blue);
+      }
+
+      .admin-topbar-title span {
+        display: block;
+        font-size: 0.8rem;
+        color: #666;
+      }
+
+      .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .stat-card {
+        background: #fff;
+        border-radius: 14px;
+        padding: 18px;
+        text-align: center;
+        box-shadow: 0 4px 14px rgba(20, 40, 120, 0.08);
+        border-top: 3px solid var(--gcash-blue);
+      }
+
+      .stat-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--gcash-blue-dark);
+      }
+
+      .stat-label {
+        font-size: 0.8rem;
+        color: #666;
+        margin-top: 4px;
+      }
+
+      .filter-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: flex-end;
+      }
+
+      .filter-field {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 140px;
+      }
+
+      .filter-field label {
+        margin: 0 0 4px;
+        font-size: 0.8rem;
+      }
+
+      .filter-field input,
+      .filter-field select {
+        padding: 9px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 0.9rem;
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      .filter-row .back-btn {
+        flex: 0 0 auto;
+        height: 38px;
+        margin-top: auto;
+      }
+
       .admin-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.9rem;
+        font-size: 0.88rem;
       }
 
-      .admin-table th,
+      .admin-table th {
+        text-align: left;
+        padding: 10px 8px;
+        border-bottom: 2px solid #eef0f5;
+        color: #555;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+
       .admin-table td {
         text-align: left;
         padding: 10px 8px;
         border-bottom: 1px solid #eef0f5;
+      }
+
+      .admin-table tbody tr:hover {
+        background: #f5f8ff;
       }
 
       .admin-table button {
@@ -36,6 +140,7 @@
         border-radius: 6px;
         padding: 8px 14px;
         font-size: 0.85rem;
+        white-space: nowrap;
       }
 
       .back-btn,
@@ -130,6 +235,12 @@
         margin-top: 8px;
       }
 
+      .empty-state {
+        text-align: center;
+        color: #777;
+        padding: 20px 0;
+      }
+
       @media print {
         .no-print {
           display: none !important;
@@ -147,12 +258,12 @@
   </head>
   <body>
     <div class="container admin-wrap">
-      <header class="header no-print">
-        <h1>GCash Payroll Enrollment - Admin</h1>
-        <p class="purpose">HR use only. Enter the admin passcode to view submissions.</p>
-      </header>
 
-      <div id="loginSection" class="admin-card no-print">
+      <div id="loginSection" class="admin-card admin-login-card no-print">
+        <div class="record-header">
+          <h1 style="margin:0;">GCash Payroll Enrollment</h1>
+          <p class="purpose">Admin - HR use only</p>
+        </div>
         <label for="passcode">Admin Passcode</label>
         <input type="password" id="passcode" name="passcode">
         <div class="submit-row">
@@ -161,24 +272,73 @@
         <div id="loginError"></div>
       </div>
 
-      <div id="listSection" class="admin-card no-print" hidden>
-        <h2>Submissions</h2>
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Employee Name</th>
-              <th>Branch/Department</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="listBody"></tbody>
-        </table>
+      <div id="dashboardSection" hidden>
+        <div class="admin-topbar no-print">
+          <div class="admin-topbar-title">
+            <strong>GCash Payroll Enrollment</strong>
+            <span>Admin Dashboard</span>
+          </div>
+          <button type="button" id="logoutBtn" class="back-btn">Log Out</button>
+        </div>
+
+        <div class="stat-grid no-print">
+          <div class="stat-card">
+            <div class="stat-value" id="statTotal">0</div>
+            <div class="stat-label">Total Enrollees</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statMonth">0</div>
+            <div class="stat-label">This Month</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statLatest">&mdash;</div>
+            <div class="stat-label">Latest Submission</div>
+          </div>
+        </div>
+
+        <div class="admin-card no-print">
+          <div class="filter-row">
+            <div class="filter-field">
+              <label for="filterName">Search Name</label>
+              <input type="text" id="filterName" placeholder="Employee name...">
+            </div>
+            <div class="filter-field">
+              <label for="filterBranch">Branch/Department</label>
+              <select id="filterBranch"><option value="">All Branches</option></select>
+            </div>
+            <div class="filter-field">
+              <label for="filterFrom">From</label>
+              <input type="date" id="filterFrom">
+            </div>
+            <div class="filter-field">
+              <label for="filterTo">To</label>
+              <input type="date" id="filterTo">
+            </div>
+            <button type="button" id="clearFilterBtn" class="back-btn">Clear Filters</button>
+          </div>
+        </div>
+
+        <div class="admin-card no-print">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Employee Name</th>
+                <th>Branch/Department</th>
+                <th>Contact Number</th>
+                <th>GCash Mobile Number</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="listBody"></tbody>
+          </table>
+          <p id="emptyState" class="empty-state" hidden>No submissions match your filters.</p>
+        </div>
       </div>
 
       <div id="detailSection" hidden>
         <div class="no-print" style="margin-bottom:16px;">
-          <button type="button" id="backBtn" class="back-btn">&larr; Back to list</button>
+          <button type="button" id="backBtn" class="back-btn">&larr; Back to dashboard</button>
           <button type="button" id="printBtn" class="print-btn">Print / Save as PDF</button>
         </div>
 
@@ -213,39 +373,141 @@
     <script>
       (function () {
         var passcode = '';
+        var allRows = [];
+
+        function callBackend(action, extra) {
+          return new Promise(function (resolve, reject) {
+            var payload = Object.assign({}, extra, { passcode: passcode });
+            var call = google.script.run
+              .withSuccessHandler(function (result) { resolve(result); })
+              .withFailureHandler(function (err) { reject(err); });
+            if (action === 'listSubmissions') {
+              call.listSubmissions(passcode);
+            } else if (action === 'getSubmissionDetail') {
+              call.getSubmissionDetail(passcode, extra.rowIndex);
+            }
+          });
+        }
+
+        function showLogin() {
+          document.getElementById('loginSection').hidden = false;
+          document.getElementById('dashboardSection').hidden = true;
+          document.getElementById('detailSection').hidden = true;
+        }
+
+        function showDashboard() {
+          document.getElementById('loginSection').hidden = true;
+          document.getElementById('dashboardSection').hidden = false;
+          document.getElementById('detailSection').hidden = true;
+        }
+
+        function attemptLogin(code) {
+          passcode = code;
+          return callBackend('listSubmissions', {}).then(function (rows) {
+            allRows = rows;
+            sessionStorage.setItem('gcashAdminPasscode', passcode);
+            populateBranchFilter(rows);
+            renderDashboard(rows);
+            showDashboard();
+          });
+        }
 
         document.getElementById('loginBtn').addEventListener('click', function () {
-          passcode = document.getElementById('passcode').value;
+          var code = document.getElementById('passcode').value;
           document.getElementById('loginError').textContent = '';
-          google.script.run
-            .withSuccessHandler(function (rows) {
-              renderList(rows);
-              document.getElementById('loginSection').hidden = true;
-              document.getElementById('listSection').hidden = false;
-            })
-            .withFailureHandler(function (err) {
-              document.getElementById('loginError').textContent = 'Incorrect passcode.';
-            })
-            .listSubmissions(passcode);
+          attemptLogin(code).catch(function () {
+            document.getElementById('loginError').textContent = 'Incorrect passcode.';
+          });
+        });
+
+        document.getElementById('logoutBtn').addEventListener('click', function () {
+          sessionStorage.removeItem('gcashAdminPasscode');
+          passcode = '';
+          document.getElementById('passcode').value = '';
+          showLogin();
+        });
+
+        function populateBranchFilter(rows) {
+          var select = document.getElementById('filterBranch');
+          var existing = Array.prototype.slice.call(select.options).map(function (o) { return o.value; });
+          var branches = [];
+          rows.forEach(function (row) {
+            if (row.branchDepartment && branches.indexOf(row.branchDepartment) === -1) {
+              branches.push(row.branchDepartment);
+            }
+          });
+          branches.sort();
+          branches.forEach(function (branch) {
+            if (existing.indexOf(branch) === -1) {
+              var opt = document.createElement('option');
+              opt.value = branch;
+              opt.textContent = branch;
+              select.appendChild(opt);
+            }
+          });
+        }
+
+        function renderDashboard(rows) {
+          document.getElementById('statTotal').textContent = rows.length;
+
+          var now = new Date();
+          var thisMonthCount = rows.filter(function (row) {
+            var d = new Date(row.timestampIso);
+            return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+          }).length;
+          document.getElementById('statMonth').textContent = thisMonthCount;
+
+          var latest = rows.reduce(function (max, row) {
+            return (!max || row.timestampIso > max.timestampIso) ? row : max;
+          }, null);
+          document.getElementById('statLatest').textContent = latest ? latest.timestamp : '—';
+
+          applyFiltersAndRender();
+        }
+
+        function applyFiltersAndRender() {
+          var nameQuery = document.getElementById('filterName').value.trim().toLowerCase();
+          var branchQuery = document.getElementById('filterBranch').value;
+          var fromQuery = document.getElementById('filterFrom').value;
+          var toQuery = document.getElementById('filterTo').value;
+
+          var filtered = allRows.filter(function (row) {
+            if (nameQuery && row.employeeName.toLowerCase().indexOf(nameQuery) === -1) return false;
+            if (branchQuery && row.branchDepartment !== branchQuery) return false;
+            if (fromQuery && row.timestampIso.substring(0, 10) < fromQuery) return false;
+            if (toQuery && row.timestampIso.substring(0, 10) > toQuery) return false;
+            return true;
+          });
+
+          renderList(filtered);
+        }
+
+        ['filterName', 'filterBranch', 'filterFrom', 'filterTo'].forEach(function (id) {
+          document.getElementById(id).addEventListener('input', applyFiltersAndRender);
+          document.getElementById(id).addEventListener('change', applyFiltersAndRender);
+        });
+
+        document.getElementById('clearFilterBtn').addEventListener('click', function () {
+          document.getElementById('filterName').value = '';
+          document.getElementById('filterBranch').value = '';
+          document.getElementById('filterFrom').value = '';
+          document.getElementById('filterTo').value = '';
+          applyFiltersAndRender();
         });
 
         function renderList(rows) {
           var body = document.getElementById('listBody');
           body.innerHTML = '';
+          document.getElementById('emptyState').hidden = rows.length > 0;
+
           rows.forEach(function (row) {
             var tr = document.createElement('tr');
 
-            var tdDate = document.createElement('td');
-            tdDate.textContent = row.timestamp;
-            tr.appendChild(tdDate);
-
-            var tdName = document.createElement('td');
-            tdName.textContent = row.employeeName;
-            tr.appendChild(tdName);
-
-            var tdBranch = document.createElement('td');
-            tdBranch.textContent = row.branchDepartment;
-            tr.appendChild(tdBranch);
+            [row.timestamp, row.employeeName, row.branchDepartment, row.contactNumber, row.gcashMobileNumber].forEach(function (val) {
+              var td = document.createElement('td');
+              td.textContent = val;
+              tr.appendChild(td);
+            });
 
             var tdBtn = document.createElement('td');
             var btn = document.createElement('button');
@@ -259,16 +521,15 @@
         }
 
         function viewDetail(rowIndex) {
-          google.script.run
-            .withSuccessHandler(function (detail) {
+          callBackend('getSubmissionDetail', { rowIndex: rowIndex })
+            .then(function (detail) {
               renderDetail(detail);
-              document.getElementById('listSection').hidden = true;
+              document.getElementById('dashboardSection').hidden = true;
               document.getElementById('detailSection').hidden = false;
             })
-            .withFailureHandler(function (err) {
+            .catch(function (err) {
               alert('Could not load this record: ' + err.message);
-            })
-            .getSubmissionDetail(passcode, rowIndex);
+            });
         }
 
         function renderDetail(detail) {
@@ -295,12 +556,20 @@
 
         document.getElementById('backBtn').addEventListener('click', function () {
           document.getElementById('detailSection').hidden = true;
-          document.getElementById('listSection').hidden = false;
+          document.getElementById('dashboardSection').hidden = false;
         });
 
         document.getElementById('printBtn').addEventListener('click', function () {
           window.print();
         });
+
+        var savedPasscode = sessionStorage.getItem('gcashAdminPasscode');
+        if (savedPasscode) {
+          attemptLogin(savedPasscode).catch(function () {
+            sessionStorage.removeItem('gcashAdminPasscode');
+            showLogin();
+          });
+        }
       })();
     </script>
   </body>

@@ -220,8 +220,11 @@ function listSubmissions(passcode) {
     result.push({
       rowIndex: i + 2,
       timestamp: Utilities.formatDate(new Date(data[i][0]), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'),
+      timestampIso: Utilities.formatDate(new Date(data[i][0]), Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss"),
       employeeName: data[i][1],
-      branchDepartment: data[i][2]
+      branchDepartment: data[i][2],
+      contactNumber: data[i][3],
+      gcashMobileNumber: data[i][4]
     });
   }
   return result;
