@@ -1,0 +1,216 @@
+<style>
+  :root {
+    --photoline-blue: #1a3fd1;
+    --gcash-blue: #0072ce;
+    --gcash-blue-dark: #00327a;
+    --accent-red: #e2231a;
+    --text-dark: #1a1a1a;
+    --border-color: #d0d5dd;
+    --error-red: #c0392b;
+    --bg: #f5f7fb;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: linear-gradient(180deg, #e9eefb 0%, var(--bg) 220px);
+    color: var(--text-dark);
+    border-top: 5px solid;
+    border-image: linear-gradient(90deg, var(--photoline-blue), var(--gcash-blue)) 1;
+  }
+
+  .container {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 20px;
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px 16px;
+    box-shadow: 0 4px 14px rgba(20, 40, 120, 0.1);
+  }
+
+  .logo {
+    max-width: 190px;
+    width: 100%;
+    height: auto;
+    margin-bottom: 10px;
+  }
+
+  .header h1 {
+    font-size: 1.25rem;
+    color: var(--gcash-blue-dark);
+    margin: 4px 0;
+    letter-spacing: -0.01em;
+  }
+
+  .purpose {
+    font-size: 0.9rem;
+    color: #555;
+    margin: 6px 0 0;
+  }
+
+  .section {
+    background: #fff;
+    border-radius: 14px;
+    padding: 18px 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 14px rgba(20, 40, 120, 0.08);
+    border-left: 4px solid var(--gcash-blue);
+  }
+
+  .section h2 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--photoline-blue);
+    margin: 0 0 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eef0f5;
+  }
+
+  label {
+    display: block;
+    font-weight: 600;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 0.9rem;
+  }
+
+  .required {
+    color: var(--accent-red);
+  }
+
+  input[type="text"],
+  input[type="tel"],
+  input[type="file"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 1rem;
+  }
+
+  input[type="text"]:focus,
+  input[type="tel"]:focus,
+  input[type="file"]:focus,
+  .checkbox-label input:focus,
+  #submitBtn:focus,
+  .signature-actions button:focus,
+  canvas#signaturePad:focus {
+    outline: 3px solid var(--gcash-blue);
+    outline-offset: 2px;
+  }
+
+  .hint {
+    font-size: 0.8rem;
+    color: #666;
+    margin: 4px 0;
+  }
+
+  .checkbox-label {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-weight: 400;
+    font-size: 0.85rem;
+    line-height: 1.4;
+  }
+
+  .checkbox-label input {
+    margin-top: 2px;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+
+  canvas#signaturePad {
+    width: 100%;
+    max-width: 100%;
+    height: 160px;
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    touch-action: none;
+    background: #fff;
+  }
+
+  .signature-actions {
+    margin-top: 8px;
+    text-align: right;
+  }
+
+  .signature-actions button {
+    background: #eee;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px 18px;
+    font-size: 0.9rem;
+  }
+
+  .submit-row {
+    text-align: center;
+    margin: 24px 0;
+  }
+
+  #submitBtn {
+    background: linear-gradient(180deg, var(--gcash-blue), var(--gcash-blue-dark));
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 15px 32px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    width: 100%;
+    box-shadow: 0 6px 16px rgba(0, 114, 206, 0.35);
+  }
+
+  #submitBtn:active {
+    transform: translateY(1px);
+    box-shadow: 0 3px 10px rgba(0, 114, 206, 0.3);
+  }
+
+  #submitBtn:disabled {
+    opacity: 0.6;
+    box-shadow: none;
+  }
+
+  .spinner {
+    margin: 12px auto 0;
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--gcash-blue);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .error {
+    display: block;
+    color: var(--error-red);
+    font-size: 0.8rem;
+    margin-top: 4px;
+    min-height: 1em;
+  }
+
+  .confirmation {
+    background: #fff;
+    border-radius: 14px;
+    padding: 28px 20px;
+    text-align: center;
+    box-shadow: 0 4px 14px rgba(20, 40, 120, 0.1);
+    border-left: 4px solid var(--gcash-blue);
+    font-size: 1.05rem;
+    line-height: 1.5;
+    color: var(--gcash-blue-dark);
+  }
+</style>

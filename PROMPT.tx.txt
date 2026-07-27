@@ -1,0 +1,67 @@
+Create a mobile-friendly GCash Payroll Enrollment Form for:
+
+Photoline Enterprises Corporation
+
+Title:
+GCash Payroll Enrollment Form
+
+Purpose:
+For employees without an ATM Savings Account. Employees may enroll their own Verified GCash Account for salary crediting.
+
+Requirements:
+- Form responses must automatically save to Google Sheets.
+- Create a dedicated Google Sheet file in Google Drive named:
+  "Photoline GCash Payroll Enrollment Responses"
+- Uploaded GCash screenshots and employee digital signatures must be stored securely in a Google Drive folder named:
+  "GCash Payroll Enrollment Attachments"
+
+Form Fields:
+
+Section 1 – Employee Information
+
+1. Employee Name (Required)
+2. Branch/Department (Required)
+3. Contact Number (Required)
+4. Verified GCash Mobile Number (Required)
+
+Section 2 – GCash Verification
+
+5. Upload Screenshot of Verified GCash Account (Required)
+
+Requirements:
+- Screenshot must show:
+  • Employee Full Name
+  • Verified Status
+  • GCash Mobile Number
+
+Allowed File Types:
+JPG, PNG, PDF
+
+Maximum File Size:
+10 MB
+
+Section 3 – Employee Declaration
+
+Required Checkbox:
+
+"I certify that the GCash account provided is my own Verified GCash Account. I authorize Photoline Enterprises Corporation to credit my salary and approved payments to this account until I submit a written request for changes. I understand that any delay or failed transaction caused by incorrect information I provided will be my responsibility."
+
+Section 4 – Electronic Signature
+
+Create a required handwritten digital signature field.
+
+Requirements:
+- Employee signs using finger on mobile phone touchscreen.
+- Signature must be saved as an image file.
+- Store signature image in the Google Drive folder:
+  "GCash Payroll Enrollment Attachments"
+- Link the signature file to the Google Sheet response record.
+- Include clear and re-sign option.
+
+Section 5 – Submission Date
+
+Automatically record submission date and time.
+
+Confirmation Message:
+
+"Thank you! Your GCash Payroll Enrollment Form has been successfully submitted. The HR Department of Photoline Enterprises Corporation will review your information and may contact you for additional verification."

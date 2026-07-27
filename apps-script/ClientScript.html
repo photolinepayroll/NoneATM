@@ -1,0 +1,181 @@
+<script>
+  (function () {
+    var canvas = document.getElementById('signaturePad');
+    var ctx = canvas.getContext('2d');
+    var drawing = false;
+    var hasSignature = false;
+
+    function resizeCanvas() {
+      var ratio = window.devicePixelRatio || 1;
+      var rect = canvas.getBoundingClientRect();
+      var newWidth = rect.width * ratio;
+      var newHeight = rect.height * ratio;
+      if (newWidth === canvas.width && newHeight === canvas.height) {
+        return;
+      }
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+      ctx.scale(ratio, ratio);
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#1a1a1a';
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    function getPos(evt) {
+      var rect = canvas.getBoundingClientRect();
+      var point = evt.touches ? evt.touches[0] : evt;
+      return { x: point.clientX - rect.left, y: point.clientY - rect.top };
+    }
+
+    function startDraw(evt) {
+      evt.preventDefault();
+      drawing = true;
+      hasSignature = true;
+      var pos = getPos(evt);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    }
+
+    function moveDraw(evt) {
+      if (!drawing) return;
+      evt.preventDefault();
+      var pos = getPos(evt);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+    }
+
+    function endDraw() {
+      drawing = false;
+    }
+
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', moveDraw);
+    window.addEventListener('mouseup', endDraw);
+    canvas.addEventListener('touchstart', startDraw, { passive: false });
+    canvas.addEventListener('touchmove', moveDraw, { passive: false });
+    canvas.addEventListener('touchend', endDraw);
+
+    document.getElementById('clearSignature').addEventListener('click', function () {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      hasSignature = false;
+    });
+
+    function clearErrors() {
+      document.querySelectorAll('.error').forEach(function (el) { el.textContent = ''; });
+    }
+
+    function setError(fieldId, message) {
+      var el = document.getElementById('err-' + fieldId);
+      if (el) el.textContent = message;
+    }
+
+    var ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'pdf'];
+    var MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+
+    function readFileAsBase64(file) {
+      return new Promise(function (resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function () {
+          var result = reader.result;
+          resolve(result.substring(result.indexOf(',') + 1));
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function canvasToBase64(cvs) {
+      var dataUrl = cvs.toDataURL('image/png');
+      return dataUrl.substring(dataUrl.indexOf(',') + 1);
+    }
+
+    function isSignatureBlank() {
+      var blank = document.createElement('canvas');
+      blank.width = canvas.width;
+      blank.height = canvas.height;
+      return canvas.toDataURL() === blank.toDataURL();
+    }
+
+    document.getElementById('screenshot').addEventListener('change', function (evt) {
+      setError('screenshot', '');
+      var file = evt.target.files[0];
+      if (!file) return;
+      var ext = file.name.split('.').pop().toLowerCase();
+      if (ALLOWED_EXTENSIONS.indexOf(ext) === -1) {
+        setError('screenshot', 'File must be JPG, PNG, or PDF.');
+        evt.target.value = '';
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setError('screenshot', 'File must be 10MB or smaller.');
+        evt.target.value = '';
+      }
+    });
+
+    document.getElementById('enrollmentForm').addEventListener('submit', function (evt) {
+      evt.preventDefault();
+      clearErrors();
+
+      var employeeName = document.getElementById('employeeName').value.trim();
+      var branchDepartment = document.getElementById('branchDepartment').value.trim();
+      var contactNumber = document.getElementById('contactNumber').value.trim();
+      var gcashMobileNumber = document.getElementById('gcashMobileNumber').value.trim();
+      var declarationAccepted = document.getElementById('declarationAccepted').checked;
+      var screenshotInput = document.getElementById('screenshot');
+      var screenshotFile = screenshotInput.files[0];
+
+      var valid = true;
+      if (!employeeName) { setError('employeeName', 'Required.'); valid = false; }
+      if (!branchDepartment) { setError('branchDepartment', 'Required.'); valid = false; }
+      if (!contactNumber) { setError('contactNumber', 'Required.'); valid = false; }
+      if (!gcashMobileNumber) { setError('gcashMobileNumber', 'Required.'); valid = false; }
+      if (!screenshotFile) { setError('screenshot', 'Screenshot is required.'); valid = false; }
+      if (!declarationAccepted) { setError('declarationAccepted', 'You must accept the declaration.'); valid = false; }
+      if (!hasSignature || isSignatureBlank()) { setError('signature', 'Signature is required.'); valid = false; }
+
+      if (!valid) return;
+
+      var submitBtn = document.getElementById('submitBtn');
+      var spinner = document.getElementById('spinner');
+      submitBtn.disabled = true;
+      spinner.hidden = false;
+
+      readFileAsBase64(screenshotFile).then(function (screenshotBase64) {
+        var payload = {
+          employeeName: employeeName,
+          branchDepartment: branchDepartment,
+          contactNumber: contactNumber,
+          gcashMobileNumber: gcashMobileNumber,
+          declarationAccepted: declarationAccepted,
+          screenshotBase64: screenshotBase64,
+          screenshotMimeType: screenshotFile.type,
+          signatureBase64: canvasToBase64(canvas)
+        };
+
+        google.script.run
+          .withSuccessHandler(function (response) {
+            submitBtn.disabled = false;
+            spinner.hidden = true;
+            if (response.success) {
+              document.getElementById('enrollmentForm').hidden = true;
+              document.getElementById('confirmation').hidden = false;
+            } else {
+              setError('form', response.errors.join(' '));
+            }
+          })
+          .withFailureHandler(function (error) {
+            submitBtn.disabled = false;
+            spinner.hidden = true;
+            setError('form', 'Submission failed: ' + error.message + '. Please try again.');
+          })
+          .submitForm(payload);
+      }).catch(function () {
+        submitBtn.disabled = false;
+        spinner.hidden = true;
+        setError('screenshot', 'Could not read the selected file. Please try again.');
+      });
+    });
+  })();
+</script>
