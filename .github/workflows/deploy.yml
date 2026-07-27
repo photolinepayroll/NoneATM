@@ -1,0 +1,35 @@
+name: Deploy to Google Apps Script
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps-script/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install clasp
+        run: npm install -g @google/clasp
+
+      - name: Restore clasp credentials
+        run: echo "$CLASP_CREDENTIALS" > ~/.clasprc.json
+        env:
+          CLASP_CREDENTIALS: ${{ secrets.CLASP_CREDENTIALS }}
+
+      - name: Push code to Apps Script
+        working-directory: apps-script
+        run: clasp push --force
+
+      - name: Deploy web app (update existing deployment)
+        working-directory: apps-script
+        run: clasp deploy -i "$DEPLOYMENT_ID" -d "Auto-deploy from GitHub Actions ($GITHUB_SHA)"
+        env:
+          DEPLOYMENT_ID: ${{ secrets.CLASP_DEPLOYMENT_ID }}
