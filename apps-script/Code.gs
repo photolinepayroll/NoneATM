@@ -134,8 +134,8 @@ function submitForm(formData) {
       now,
       sanitizeForSheet_(formData.employeeName),
       sanitizeForSheet_(formData.branchDepartment),
-      sanitizeForSheet_(formData.contactNumber),
-      sanitizeForSheet_(formData.gcashMobileNumber),
+      sanitizeMobileForSheet_(formData.contactNumber),
+      sanitizeMobileForSheet_(formData.gcashMobileNumber),
       'Yes',
       screenshotFile.getUrl(),
       signatureFile.getUrl()
@@ -208,6 +208,18 @@ function sanitizeForSheet_(value) {
   return str;
 }
 
+function sanitizeMobileForSheet_(value) {
+  return "'" + String(value);
+}
+
+function normalizeMobileNumber_(value) {
+  var digits = String(value == null ? '' : value).replace(/\D/g, '');
+  if (digits.length === 10 && digits.charAt(0) !== '0') {
+    digits = '0' + digits;
+  }
+  return digits;
+}
+
 function requireAdmin_(passcode) {
   var expected = PropertiesService.getScriptProperties().getProperty('ADMIN_PASSCODE');
   if (!expected || passcode !== expected) {
@@ -231,8 +243,8 @@ function listSubmissions(passcode) {
       timestampIso: Utilities.formatDate(new Date(data[i][0]), Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss"),
       employeeName: data[i][1],
       branchDepartment: data[i][2],
-      contactNumber: data[i][3],
-      gcashMobileNumber: data[i][4]
+      contactNumber: normalizeMobileNumber_(data[i][3]),
+      gcashMobileNumber: normalizeMobileNumber_(data[i][4])
     });
   }
   return result;
@@ -252,8 +264,8 @@ function getSubmissionDetail(passcode, rowIndex) {
     timestamp: Utilities.formatDate(new Date(row[0]), Session.getScriptTimeZone(), 'MMMM d, yyyy h:mm a'),
     employeeName: row[1],
     branchDepartment: row[2],
-    contactNumber: row[3],
-    gcashMobileNumber: row[4],
+    contactNumber: normalizeMobileNumber_(row[3]),
+    gcashMobileNumber: normalizeMobileNumber_(row[4]),
     declarationAccepted: row[5],
     screenshotBase64: screenshotBlob ? Utilities.base64Encode(screenshotBlob.getBytes()) : null,
     screenshotMimeType: screenshotBlob ? screenshotBlob.getContentType() : null,
