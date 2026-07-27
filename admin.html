@@ -542,6 +542,53 @@
         .admin-card {
           box-shadow: none;
           border-radius: 0;
+          padding: 0;
+        }
+
+        .record-header {
+          margin-bottom: 8px;
+        }
+        .record-header .logo {
+          max-height: 0.55in;
+          margin-bottom: 4px;
+        }
+        .record-header h1 {
+          font-size: 1.25rem;
+        }
+        .record-header .purpose {
+          font-size: 0.75rem;
+        }
+
+        .record-field {
+          padding: 3px 0;
+          font-size: 0.8rem;
+        }
+
+        .agreement-heading {
+          font-size: 0.75rem;
+          margin: 8px 0 4px;
+        }
+        .agreement-text {
+          font-size: 0.8rem;
+          line-height: 1.35;
+          padding: 8px 10px;
+          margin: 0 0 8px;
+        }
+
+        .signature-block {
+          margin: 10px auto 0;
+          page-break-inside: avoid;
+        }
+        .signature-image {
+          max-height: 0.6in;
+        }
+
+        .verified-screenshot-block {
+          margin-top: 10px;
+          page-break-inside: avoid;
+        }
+        .screenshot-image {
+          max-height: 2.3in;
         }
       }
     </style>
@@ -633,8 +680,7 @@
       <div id="detailSection" hidden>
         <div class="no-print" style="margin-bottom:16px;">
           <button type="button" id="backBtn" class="back-btn">&larr; Back to dashboard</button>
-          <button type="button" id="printBtn" class="print-btn">Print / Save as PDF</button>
-          <p class="print-fallback-hint">If nothing opens, press <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac) instead.</p>
+          <p class="print-fallback-hint">Press <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac) to print or save as PDF.</p>
         </div>
 
         <div class="admin-card">
@@ -894,10 +940,6 @@
         document.getElementById('backBtn').addEventListener('click', function () {
           document.getElementById('detailSection').hidden = true;
           document.getElementById('dashboardSection').hidden = false;
-        });
-
-        document.getElementById('printBtn').addEventListener('click', function () {
-          window.print();
         });
 
         var savedPasscode = sessionStorage.getItem('gcashAdminPasscode');
