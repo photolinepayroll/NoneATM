@@ -157,6 +157,15 @@
     margin: 24px 0;
   }
 
+  button {
+    cursor: pointer;
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+  }
+
+  button:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+
   #submitBtn {
     background: linear-gradient(180deg, var(--gcash-blue), var(--gcash-blue-dark));
     color: #fff;
@@ -170,8 +179,8 @@
     box-shadow: 0 6px 16px rgba(0, 114, 206, 0.35);
   }
 
-  #submitBtn:active {
-    transform: translateY(1px);
+  #submitBtn:active:not(:disabled) {
+    transform: scale(0.97);
     box-shadow: 0 3px 10px rgba(0, 114, 206, 0.3);
   }
 
