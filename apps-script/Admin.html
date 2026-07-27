@@ -413,10 +413,18 @@
 
         document.getElementById('loginBtn').addEventListener('click', function () {
           var code = document.getElementById('passcode').value;
+          var btn = document.getElementById('loginBtn');
           document.getElementById('loginError').textContent = '';
-          attemptLogin(code).catch(function () {
-            document.getElementById('loginError').textContent = 'Incorrect passcode.';
-          });
+          btn.disabled = true;
+          btn.textContent = 'Logging in...';
+          attemptLogin(code)
+            .catch(function () {
+              document.getElementById('loginError').textContent = 'Incorrect passcode.';
+            })
+            .then(function () {
+              btn.disabled = false;
+              btn.textContent = 'Log In';
+            });
         });
 
         document.getElementById('logoutBtn').addEventListener('click', function () {

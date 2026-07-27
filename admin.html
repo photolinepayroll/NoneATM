@@ -94,17 +94,22 @@
 
   input[type="text"],
   input[type="tel"],
-  input[type="file"] {
+  input[type="file"],
+  input[type="password"],
+  input[type="date"] {
     width: 100%;
     padding: 10px;
     border: 1px solid var(--border-color);
     border-radius: 6px;
     font-size: 1rem;
+    box-sizing: border-box;
   }
 
   input[type="text"]:focus,
   input[type="tel"]:focus,
   input[type="file"]:focus,
+  input[type="password"]:focus,
+  input[type="date"]:focus,
   .checkbox-label input:focus,
   #submitBtn:focus,
   .signature-actions button:focus,
@@ -161,6 +166,20 @@
   .submit-row {
     text-align: center;
     margin: 24px 0;
+  }
+
+  button {
+    cursor: pointer;
+    transition: transform 0.08s ease, box-shadow 0.08s ease, opacity 0.08s ease;
+  }
+
+  button:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+
+  button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   #submitBtn {
@@ -632,10 +651,18 @@
 
         document.getElementById('loginBtn').addEventListener('click', function () {
           var code = document.getElementById('passcode').value;
+          var btn = document.getElementById('loginBtn');
           document.getElementById('loginError').textContent = '';
-          attemptLogin(code).catch(function () {
-            document.getElementById('loginError').textContent = 'Incorrect passcode.';
-          });
+          btn.disabled = true;
+          btn.textContent = 'Logging in...';
+          attemptLogin(code)
+            .catch(function () {
+              document.getElementById('loginError').textContent = 'Incorrect passcode.';
+            })
+            .then(function () {
+              btn.disabled = false;
+              btn.textContent = 'Log In';
+            });
         });
 
         document.getElementById('logoutBtn').addEventListener('click', function () {
