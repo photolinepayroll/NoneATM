@@ -16,8 +16,18 @@ const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 function setup() {
   var sheet = getOrCreateSheet_();
   var folder = getOrCreateFolder_();
+  ensureAdminPasscode_();
   Logger.log('Sheet ready: ' + sheet.getParent().getUrl());
   Logger.log('Folder ready: ' + folder.getUrl());
+}
+
+function ensureAdminPasscode_() {
+  var props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('ADMIN_PASSCODE')) {
+    var passcode = Utilities.getUuid().split('-')[0];
+    props.setProperty('ADMIN_PASSCODE', passcode);
+    Logger.log('Admin passcode set: ' + passcode);
+  }
 }
 
 function getOrCreateSheet_() {
@@ -40,10 +50,11 @@ function getOrCreateFolder_() {
   return DriveApp.createFolder(FOLDER_NAME);
 }
 
-function doGet() {
-  return HtmlService.createTemplateFromFile('Index')
+function doGet(e) {
+  var isAdmin = e && e.parameter && e.parameter.page === 'admin';
+  return HtmlService.createTemplateFromFile(isAdmin ? 'Admin' : 'Index')
     .evaluate()
-    .setTitle('GCash Payroll Enrollment Form')
+    .setTitle(isAdmin ? 'GCash Payroll Enrollment - Admin' : 'GCash Payroll Enrollment Form')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
@@ -164,4 +175,57 @@ function sanitizeForSheet_(value) {
   return str;
 }
 
-// deploy trigger: verifying GitHub Actions auto-deploy
+function requireAdmin_(passcode) {
+  var expected = PropertiesService.getScriptProperties().getProperty('ADMIN_PASSCODE');
+  if (!expected || passcode !== expected) {
+    throw new Error('Invalid admin passcode.');
+  }
+}
+
+function listSubmissions(passcode) {
+  requireAdmin_(passcode);
+  var sheet = getOrCreateSheet_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return [];
+  }
+  var data = sheet.getRange(2, 1, lastRow - 1, SHEET_HEADERS.length).getValues();
+  var result = [];
+  for (var i = 0; i < data.length; i++) {
+    result.push({
+      rowIndex: i + 2,
+      timestamp: Utilities.formatDate(new Date(data[i][0]), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'),
+      employeeName: data[i][1],
+      branchDepartment: data[i][2]
+    });
+  }
+  return result;
+}
+
+function getSubmissionDetail(passcode, rowIndex) {
+  requireAdmin_(passcode);
+  var sheet = getOrCreateSheet_();
+  var row = sheet.getRange(rowIndex, 1, 1, SHEET_HEADERS.length).getValues()[0];
+
+  var screenshotId = extractFileId_(row[6]);
+  var signatureId = extractFileId_(row[7]);
+  var screenshotBlob = screenshotId ? DriveApp.getFileById(screenshotId).getBlob() : null;
+  var signatureBlob = signatureId ? DriveApp.getFileById(signatureId).getBlob() : null;
+
+  return {
+    timestamp: Utilities.formatDate(new Date(row[0]), Session.getScriptTimeZone(), 'MMMM d, yyyy h:mm a'),
+    employeeName: row[1],
+    branchDepartment: row[2],
+    contactNumber: row[3],
+    gcashMobileNumber: row[4],
+    declarationAccepted: row[5],
+    screenshotBase64: screenshotBlob ? Utilities.base64Encode(screenshotBlob.getBytes()) : null,
+    screenshotMimeType: screenshotBlob ? screenshotBlob.getContentType() : null,
+    signatureBase64: signatureBlob ? Utilities.base64Encode(signatureBlob.getBytes()) : null
+  };
+}
+
+function extractFileId_(url) {
+  var match = String(url).match(/[-\w]{25,}/);
+  return match ? match[0] : null;
+}

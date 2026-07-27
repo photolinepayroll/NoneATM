@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <?!= include('Styles'); ?>
+    <style>
+      .admin-wrap {
+        max-width: 720px;
+      }
+
+      .admin-card {
+        background: #fff;
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 4px 14px rgba(20, 40, 120, 0.08);
+      }
+
+      .admin-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+      }
+
+      .admin-table th,
+      .admin-table td {
+        text-align: left;
+        padding: 10px 8px;
+        border-bottom: 1px solid #eef0f5;
+      }
+
+      .admin-table button {
+        background: var(--gcash-blue);
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 8px 14px;
+        font-size: 0.85rem;
+      }
+
+      .back-btn,
+      .print-btn {
+        background: #eee;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 10px 16px;
+        font-size: 0.9rem;
+        margin-right: 8px;
+      }
+
+      .print-btn {
+        background: var(--gcash-blue);
+        color: #fff;
+        border: none;
+      }
+
+      .record-header {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+
+      .record-field {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #eef0f5;
+        font-size: 0.95rem;
+      }
+
+      .record-field .label {
+        font-weight: 600;
+        color: #444;
+      }
+
+      .agreement-text {
+        font-size: 0.85rem;
+        line-height: 1.6;
+        color: #333;
+        background: #f9fafc;
+        border: 1px solid #eef0f5;
+        border-radius: 8px;
+        padding: 14px;
+        margin: 16px 0;
+      }
+
+      .screenshot-preview {
+        max-width: 100%;
+        max-height: 320px;
+        display: block;
+        margin: 12px auto;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+      }
+
+      .signature-block {
+        margin: 32px auto 0;
+        max-width: 320px;
+        text-align: center;
+      }
+
+      .signature-image {
+        max-width: 260px;
+        max-height: 110px;
+        margin-bottom: -18px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .signature-line {
+        border-top: 1px solid #333;
+        margin: 0 10px;
+      }
+
+      .printed-name {
+        font-weight: 700;
+        text-transform: uppercase;
+        margin-top: 6px;
+        font-size: 0.95rem;
+      }
+
+      .printed-name-label {
+        font-size: 0.75rem;
+        color: #666;
+        font-style: italic;
+      }
+
+      #loginError {
+        color: var(--error-red);
+        font-size: 0.85rem;
+        margin-top: 8px;
+      }
+
+      @media print {
+        .no-print {
+          display: none !important;
+        }
+        body {
+          background: #fff;
+          border-top: none;
+        }
+        .admin-card {
+          box-shadow: none;
+          border-radius: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container admin-wrap">
+      <header class="header no-print">
+        <h1>GCash Payroll Enrollment - Admin</h1>
+        <p class="purpose">HR use only. Enter the admin passcode to view submissions.</p>
+      </header>
+
+      <div id="loginSection" class="admin-card no-print">
+        <label for="passcode">Admin Passcode</label>
+        <input type="password" id="passcode" name="passcode">
+        <div class="submit-row">
+          <button type="button" id="loginBtn" class="print-btn" style="width:auto;">Log In</button>
+        </div>
+        <div id="loginError"></div>
+      </div>
+
+      <div id="listSection" class="admin-card no-print" hidden>
+        <h2>Submissions</h2>
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Employee Name</th>
+              <th>Branch/Department</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="listBody"></tbody>
+        </table>
+      </div>
+
+      <div id="detailSection" hidden>
+        <div class="no-print" style="margin-bottom:16px;">
+          <button type="button" id="backBtn" class="back-btn">&larr; Back to list</button>
+          <button type="button" id="printBtn" class="print-btn">Print / Save as PDF</button>
+        </div>
+
+        <div class="admin-card">
+          <div class="record-header">
+            <h1 style="margin:0;">GCash Payroll Enrollment Record</h1>
+            <p class="purpose">Photoline Enterprises Corporation</p>
+          </div>
+
+          <div class="record-field"><span class="label">Date Submitted</span><span id="d-timestamp"></span></div>
+          <div class="record-field"><span class="label">Employee Name</span><span id="d-employeeName"></span></div>
+          <div class="record-field"><span class="label">Branch/Department</span><span id="d-branchDepartment"></span></div>
+          <div class="record-field"><span class="label">Contact Number</span><span id="d-contactNumber"></span></div>
+          <div class="record-field"><span class="label">Verified GCash Mobile Number</span><span id="d-gcashMobileNumber"></span></div>
+
+          <div class="agreement-text">
+            I certify that the GCash account provided is my own Verified GCash Account. I authorize Photoline Enterprises Corporation to credit my salary and approved payments to this account until I submit a written request for changes. I understand that any delay or failed transaction caused by incorrect information I provided will be my responsibility.
+          </div>
+
+          <img id="d-screenshot" class="screenshot-preview" hidden>
+
+          <div class="signature-block">
+            <img id="d-signature" class="signature-image">
+            <div class="signature-line"></div>
+            <div id="d-printedName" class="printed-name"></div>
+            <div class="printed-name-label">Signature over Printed Name</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        var passcode = '';
+
+        document.getElementById('loginBtn').addEventListener('click', function () {
+          passcode = document.getElementById('passcode').value;
+          document.getElementById('loginError').textContent = '';
+          google.script.run
+            .withSuccessHandler(function (rows) {
+              renderList(rows);
+              document.getElementById('loginSection').hidden = true;
+              document.getElementById('listSection').hidden = false;
+            })
+            .withFailureHandler(function (err) {
+              document.getElementById('loginError').textContent = 'Incorrect passcode.';
+            })
+            .listSubmissions(passcode);
+        });
+
+        function renderList(rows) {
+          var body = document.getElementById('listBody');
+          body.innerHTML = '';
+          rows.forEach(function (row) {
+            var tr = document.createElement('tr');
+
+            var tdDate = document.createElement('td');
+            tdDate.textContent = row.timestamp;
+            tr.appendChild(tdDate);
+
+            var tdName = document.createElement('td');
+            tdName.textContent = row.employeeName;
+            tr.appendChild(tdName);
+
+            var tdBranch = document.createElement('td');
+            tdBranch.textContent = row.branchDepartment;
+            tr.appendChild(tdBranch);
+
+            var tdBtn = document.createElement('td');
+            var btn = document.createElement('button');
+            btn.textContent = 'View / Print';
+            btn.addEventListener('click', function () { viewDetail(row.rowIndex); });
+            tdBtn.appendChild(btn);
+            tr.appendChild(tdBtn);
+
+            body.appendChild(tr);
+          });
+        }
+
+        function viewDetail(rowIndex) {
+          google.script.run
+            .withSuccessHandler(function (detail) {
+              renderDetail(detail);
+              document.getElementById('listSection').hidden = true;
+              document.getElementById('detailSection').hidden = false;
+            })
+            .withFailureHandler(function (err) {
+              alert('Could not load this record: ' + err.message);
+            })
+            .getSubmissionDetail(passcode, rowIndex);
+        }
+
+        function renderDetail(detail) {
+          document.getElementById('d-timestamp').textContent = detail.timestamp;
+          document.getElementById('d-employeeName').textContent = detail.employeeName;
+          document.getElementById('d-branchDepartment').textContent = detail.branchDepartment;
+          document.getElementById('d-contactNumber').textContent = detail.contactNumber;
+          document.getElementById('d-gcashMobileNumber').textContent = detail.gcashMobileNumber;
+          document.getElementById('d-printedName').textContent = detail.employeeName;
+
+          var screenshotImg = document.getElementById('d-screenshot');
+          if (detail.screenshotBase64 && detail.screenshotMimeType && detail.screenshotMimeType.indexOf('image/') === 0) {
+            screenshotImg.src = 'data:' + detail.screenshotMimeType + ';base64,' + detail.screenshotBase64;
+            screenshotImg.hidden = false;
+          } else {
+            screenshotImg.hidden = true;
+          }
+
+          var signatureImg = document.getElementById('d-signature');
+          if (detail.signatureBase64) {
+            signatureImg.src = 'data:image/png;base64,' + detail.signatureBase64;
+          }
+        }
+
+        document.getElementById('backBtn').addEventListener('click', function () {
+          document.getElementById('detailSection').hidden = true;
+          document.getElementById('listSection').hidden = false;
+        });
+
+        document.getElementById('printBtn').addEventListener('click', function () {
+          window.print();
+        });
+      })();
+    </script>
+  </body>
+</html>
