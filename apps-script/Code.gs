@@ -63,15 +63,40 @@ function include(filename) {
 }
 
 function doPost(e) {
+  var body;
+  try {
+    body = JSON.parse(e.postData.contents);
+  } catch (err) {
+    return jsonResponse_({ success: false, errors: ['Invalid request body.'] });
+  }
+
+  if (body.action === 'listSubmissions') {
+    return jsonResponse_(safeAdminCall_(function () { return listSubmissions(body.passcode); }));
+  }
+  if (body.action === 'getSubmissionDetail') {
+    return jsonResponse_(safeAdminCall_(function () { return getSubmissionDetail(body.passcode, body.rowIndex); }));
+  }
+
   var result;
   try {
-    var formData = JSON.parse(e.postData.contents);
-    result = submitForm(formData);
+    result = submitForm(body);
   } catch (err) {
     result = { success: false, errors: ['Server error: ' + err.message] };
   }
-  return ContentService.createTextOutput(JSON.stringify(result))
+  return jsonResponse_(result);
+}
+
+function jsonResponse_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function safeAdminCall_(fn) {
+  try {
+    return { success: true, data: fn() };
+  } catch (err) {
+    return { success: false, errors: [err.message] };
+  }
 }
 
 function submitForm(formData) {
