@@ -151,3 +151,5 @@ function sanitizeForSheet_(value) {
   }
   return str;
 }
+
+// deploy trigger: verifying GitHub Actions auto-deploy
