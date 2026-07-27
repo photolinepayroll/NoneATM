@@ -168,7 +168,8 @@
     margin: 24px 0;
   }
 
-  #submitBtn {
+  #submitBtn,
+  #confirmSubmitBtn {
     background: linear-gradient(180deg, var(--gcash-blue), var(--gcash-blue-dark));
     color: #fff;
     border: none;
@@ -181,14 +182,53 @@
     box-shadow: 0 6px 16px rgba(0, 114, 206, 0.35);
   }
 
-  #submitBtn:active {
+  #submitBtn:active,
+  #confirmSubmitBtn:active {
     transform: translateY(1px);
     box-shadow: 0 3px 10px rgba(0, 114, 206, 0.3);
   }
 
-  #submitBtn:disabled {
+  #submitBtn:disabled,
+  #confirmSubmitBtn:disabled {
     opacity: 0.6;
     box-shadow: none;
+  }
+
+  .secondary-btn {
+    background: #eee;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 0.95rem;
+    width: 100%;
+    margin-bottom: 10px;
+  }
+
+  .review-field {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #eef0f5;
+    font-size: 0.95rem;
+  }
+
+  .review-field .review-label {
+    font-weight: 600;
+    color: #444;
+  }
+
+  .review-label {
+    font-weight: 600;
+    color: #444;
+  }
+
+  .review-screenshot-image,
+  .review-signature-image {
+    display: block;
+    max-width: 100%;
+    margin: 8px 0;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
   }
 
   .spinner {
@@ -372,11 +412,37 @@
         </section>
 
         <div class="submit-row">
-          <button type="submit" id="submitBtn">Submit</button>
+          <button type="submit" id="submitBtn">Review Submission</button>
           <div id="spinner" class="spinner" hidden></div>
         </div>
         <span class="error" id="err-form"></span>
       </form>
+
+      <section id="reviewSection" class="section" hidden>
+        <h2>Review Your Submission</h2>
+        <p class="hint">Please check your details carefully. Click "Edit" to go back and make changes, or "Confirm &amp; Submit" if everything is correct.</p>
+
+        <div class="review-field"><span class="review-label">Employee Name</span><span id="review-employeeName"></span></div>
+        <div class="review-field"><span class="review-label">Branch/Department</span><span id="review-branchDepartment"></span></div>
+        <div class="review-field"><span class="review-label">Contact Number</span><span id="review-contactNumber"></span></div>
+        <div class="review-field"><span class="review-label">Verified GCash Mobile Number</span><span id="review-gcashMobileNumber"></span></div>
+        <div class="review-field"><span class="review-label">Declaration</span><span>Accepted</span></div>
+
+        <p class="review-label" style="margin-top:14px;">Uploaded GCash Screenshot</p>
+        <img id="review-screenshot" class="review-screenshot-image" hidden>
+        <p id="review-screenshot-note" class="hint" hidden></p>
+
+        <p class="review-label" style="margin-top:14px;">Signature</p>
+        <img id="review-signature" class="review-signature-image">
+
+        <span class="error" id="err-review"></span>
+
+        <div class="submit-row">
+          <button type="button" id="editBtn" class="secondary-btn">&larr; Edit</button>
+          <button type="button" id="confirmSubmitBtn">Confirm &amp; Submit</button>
+          <div id="reviewSpinner" class="spinner" hidden></div>
+        </div>
+      </section>
 
       <div id="confirmation" class="confirmation" role="status" aria-live="polite" hidden>
         <p>Thank you! Your GCash Payroll Enrollment Form has been successfully submitted. The HR Department of Photoline Enterprises Corporation will review your information and may contact you for additional verification.</p>
@@ -391,6 +457,7 @@
         var ctx = canvas.getContext('2d');
         var drawing = false;
         var hasSignature = false;
+        var pendingSubmission = null;
 
         function resizeCanvas() {
           var ratio = window.devicePixelRatio || 1;
@@ -533,20 +600,64 @@
 
           if (!valid) return;
 
-          var submitBtn = document.getElementById('submitBtn');
-          var spinner = document.getElementById('spinner');
-          submitBtn.disabled = true;
-          spinner.hidden = false;
+          document.getElementById('review-employeeName').textContent = employeeName;
+          document.getElementById('review-branchDepartment').textContent = branchDepartment;
+          document.getElementById('review-contactNumber').textContent = contactNumber;
+          document.getElementById('review-gcashMobileNumber').textContent = gcashMobileNumber;
 
-          readFileAsBase64(screenshotFile).then(function (screenshotBase64) {
+          var reviewScreenshotImg = document.getElementById('review-screenshot');
+          var reviewScreenshotNote = document.getElementById('review-screenshot-note');
+          if (screenshotFile.type === 'application/pdf') {
+            reviewScreenshotImg.hidden = true;
+            reviewScreenshotNote.hidden = false;
+            reviewScreenshotNote.textContent = 'Uploaded file: ' + screenshotFile.name + ' (PDF)';
+          } else {
+            reviewScreenshotImg.src = URL.createObjectURL(screenshotFile);
+            reviewScreenshotImg.hidden = false;
+            reviewScreenshotNote.hidden = true;
+          }
+
+          document.getElementById('review-signature').src = canvas.toDataURL('image/png');
+
+          pendingSubmission = {
+            employeeName: employeeName,
+            branchDepartment: branchDepartment,
+            contactNumber: contactNumber,
+            gcashMobileNumber: gcashMobileNumber,
+            declarationAccepted: declarationAccepted,
+            screenshotFile: screenshotFile
+          };
+
+          setError('review', '');
+          document.getElementById('enrollmentForm').hidden = true;
+          document.getElementById('reviewSection').hidden = false;
+          document.getElementById('reviewSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+
+        document.getElementById('editBtn').addEventListener('click', function () {
+          document.getElementById('reviewSection').hidden = true;
+          document.getElementById('enrollmentForm').hidden = false;
+          document.getElementById('enrollmentForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+
+        document.getElementById('confirmSubmitBtn').addEventListener('click', function () {
+          if (!pendingSubmission) return;
+
+          var confirmSubmitBtn = document.getElementById('confirmSubmitBtn');
+          var reviewSpinner = document.getElementById('reviewSpinner');
+          setError('review', '');
+          confirmSubmitBtn.disabled = true;
+          reviewSpinner.hidden = false;
+
+          readFileAsBase64(pendingSubmission.screenshotFile).then(function (screenshotBase64) {
             var payload = {
-              employeeName: employeeName,
-              branchDepartment: branchDepartment,
-              contactNumber: contactNumber,
-              gcashMobileNumber: gcashMobileNumber,
-              declarationAccepted: declarationAccepted,
+              employeeName: pendingSubmission.employeeName,
+              branchDepartment: pendingSubmission.branchDepartment,
+              contactNumber: pendingSubmission.contactNumber,
+              gcashMobileNumber: pendingSubmission.gcashMobileNumber,
+              declarationAccepted: pendingSubmission.declarationAccepted,
               screenshotBase64: screenshotBase64,
-              screenshotMimeType: screenshotFile.type,
+              screenshotMimeType: pendingSubmission.screenshotFile.type,
               signatureBase64: canvasToBase64(canvas)
             };
 
@@ -557,24 +668,24 @@
             })
               .then(function (res) { return res.json(); })
               .then(function (response) {
-                submitBtn.disabled = false;
-                spinner.hidden = true;
+                confirmSubmitBtn.disabled = false;
+                reviewSpinner.hidden = true;
                 if (response.success) {
-                  document.getElementById('enrollmentForm').hidden = true;
+                  document.getElementById('reviewSection').hidden = true;
                   document.getElementById('confirmation').hidden = false;
                 } else {
-                  setError('form', response.errors.join(' '));
+                  setError('review', response.errors.join(' '));
                 }
               })
               .catch(function (error) {
-                submitBtn.disabled = false;
-                spinner.hidden = true;
-                setError('form', 'Submission failed: ' + error.message + '. Please try again.');
+                confirmSubmitBtn.disabled = false;
+                reviewSpinner.hidden = true;
+                setError('review', 'Submission failed: ' + error.message + '. Please try again.');
               });
           }).catch(function () {
-            submitBtn.disabled = false;
-            spinner.hidden = true;
-            setError('screenshot', 'Could not read the selected file. Please try again.');
+            confirmSubmitBtn.disabled = false;
+            reviewSpinner.hidden = true;
+            setError('review', 'Could not read the selected file. Please try again.');
           });
         });
       })();
