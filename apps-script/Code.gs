@@ -158,6 +158,7 @@ function submitForm(formData) {
       screenshotFile.getUrl(),
       signatureFile.getUrl()
     ]);
+    invalidateListSubmissionsCache_();
   } catch (e) {
     createdFiles.forEach(function (file) {
       file.setTrashed(true);
