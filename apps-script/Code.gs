@@ -73,8 +73,11 @@ function doPost(e) {
   if (body.action === 'listSubmissions') {
     return jsonResponse_(safeAdminCall_(function () { return listSubmissions(body.passcode); }));
   }
-  if (body.action === 'getSubmissionDetail') {
-    return jsonResponse_(safeAdminCall_(function () { return getSubmissionDetail(body.passcode, body.rowIndex); }));
+  if (body.action === 'getSubmissionsFields') {
+    return jsonResponse_(safeAdminCall_(function () { return getSubmissionsFields(body.passcode, body.rowIndexes); }));
+  }
+  if (body.action === 'getSubmissionsMedia') {
+    return jsonResponse_(safeAdminCall_(function () { return getSubmissionsMedia(body.passcode, body.rowIndexes); }));
   }
 
   var result;
@@ -250,6 +253,10 @@ function listSubmissions(passcode) {
   return result;
 }
 
+// Kept for apps-script/Admin.html (legacy surface), which calls this
+// directly via google.script.run rather than through doPost. The
+// standalone admin.html uses the faster split getSubmissionsFields/
+// getSubmissionsMedia actions below instead - see CLAUDE.md.
 function getSubmissionDetail(passcode, rowIndex) {
   requireAdmin_(passcode);
   var sheet = getOrCreateSheet_();
@@ -271,6 +278,39 @@ function getSubmissionDetail(passcode, rowIndex) {
     screenshotMimeType: screenshotBlob ? screenshotBlob.getContentType() : null,
     signatureBase64: signatureBlob ? Utilities.base64Encode(signatureBlob.getBytes()) : null
   };
+}
+
+function getSubmissionsFields(passcode, rowIndexes) {
+  requireAdmin_(passcode);
+  var sheet = getOrCreateSheet_();
+  return rowIndexes.map(function (rowIndex) {
+    var row = sheet.getRange(rowIndex, 1, 1, SHEET_HEADERS.length).getValues()[0];
+    return {
+      timestamp: Utilities.formatDate(new Date(row[0]), Session.getScriptTimeZone(), 'MMMM d, yyyy h:mm a'),
+      employeeName: row[1],
+      branchDepartment: row[2],
+      contactNumber: normalizeMobileNumber_(row[3]),
+      gcashMobileNumber: normalizeMobileNumber_(row[4]),
+      declarationAccepted: row[5]
+    };
+  });
+}
+
+function getSubmissionsMedia(passcode, rowIndexes) {
+  requireAdmin_(passcode);
+  var sheet = getOrCreateSheet_();
+  return rowIndexes.map(function (rowIndex) {
+    var row = sheet.getRange(rowIndex, 1, 1, SHEET_HEADERS.length).getValues()[0];
+    var screenshotId = extractFileId_(row[6]);
+    var signatureId = extractFileId_(row[7]);
+    var screenshotBlob = screenshotId ? DriveApp.getFileById(screenshotId).getBlob() : null;
+    var signatureBlob = signatureId ? DriveApp.getFileById(signatureId).getBlob() : null;
+    return {
+      screenshotBase64: screenshotBlob ? Utilities.base64Encode(screenshotBlob.getBytes()) : null,
+      screenshotMimeType: screenshotBlob ? screenshotBlob.getContentType() : null,
+      signatureBase64: signatureBlob ? Utilities.base64Encode(signatureBlob.getBytes()) : null
+    };
+  });
 }
 
 function extractFileId_(url) {

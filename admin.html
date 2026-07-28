@@ -1307,14 +1307,26 @@
         });
 
         function viewDetail(rowIndex) {
-          callBackend('getSubmissionDetail', { rowIndex: rowIndex })
-            .then(function (detail) {
-              renderDetail(detail);
+          var screenshotImg = document.getElementById('d-screenshot');
+          screenshotImg.hidden = true;
+          document.getElementById('d-signature').hidden = true;
+
+          callBackend('getSubmissionsFields', { rowIndexes: [rowIndex] })
+            .then(function (list) {
+              renderDetailFields(list[0]);
               document.getElementById('dashboardSection').hidden = true;
               document.getElementById('detailSection').hidden = false;
             })
             .catch(function (err) {
               alert('Could not load this record: ' + err.message);
+            });
+
+          callBackend('getSubmissionsMedia', { rowIndexes: [rowIndex] })
+            .then(function (list) {
+              renderDetailMedia(list[0]);
+            })
+            .catch(function (err) {
+              console.error('Could not load screenshot/signature: ' + err.message);
             });
         }
 
@@ -1328,23 +1340,25 @@
           img.src = 'data:' + mimeType + ';base64,' + base64;
         }
 
-        function renderDetail(detail) {
+        function renderDetailFields(detail) {
           document.getElementById('d-timestamp').textContent = detail.timestamp;
           document.getElementById('d-employeeName').textContent = detail.employeeName;
           document.getElementById('d-branchDepartment').textContent = detail.branchDepartment;
           document.getElementById('d-contactNumber').textContent = detail.contactNumber;
           document.getElementById('d-gcashMobileNumber').textContent = detail.gcashMobileNumber;
           document.getElementById('d-printedName').textContent = detail.employeeName;
+        }
 
+        function renderDetailMedia(media) {
           var signatureImg = document.getElementById('d-signature');
-          if (detail.signatureBase64) {
-            signatureImg.src = 'data:image/png;base64,' + detail.signatureBase64;
+          if (media.signatureBase64) {
+            signatureImg.src = 'data:image/png;base64,' + media.signatureBase64;
+            signatureImg.hidden = false;
           }
 
           var screenshotImg = document.getElementById('d-screenshot');
-          screenshotImg.hidden = true;
-          if (detail.screenshotBase64 && detail.screenshotMimeType !== 'application/pdf') {
-            setScreenshotImage(screenshotImg, detail.screenshotMimeType, detail.screenshotBase64);
+          if (media.screenshotBase64 && media.screenshotMimeType !== 'application/pdf') {
+            setScreenshotImage(screenshotImg, media.screenshotMimeType, media.screenshotBase64);
             screenshotImg.hidden = false;
           }
         }
@@ -1353,13 +1367,17 @@
           window.close();
         });
 
-        function renderBulkPrint(details) {
+        var bulkCardsByRowIndex = {};
+
+        function renderBulkPrintFields(rowIndexes, fieldsList) {
           var container = document.getElementById('bulkPrintCards');
           container.innerHTML = '';
+          bulkCardsByRowIndex = {};
           var template = document.getElementById('recordCardTemplate');
           var logoSrc = document.querySelector('#detailSection .record-header .logo').src;
 
-          details.forEach(function (detail) {
+          rowIndexes.forEach(function (rowIndex, i) {
+            var detail = fieldsList[i];
             var card = template.content.firstElementChild.cloneNode(true);
             card.querySelector('.logo').src = logoSrc;
             card.querySelector('.f-timestamp').textContent = detail.timestamp;
@@ -1368,33 +1386,53 @@
             card.querySelector('.f-contactNumber').textContent = detail.contactNumber;
             card.querySelector('.f-gcashMobileNumber').textContent = detail.gcashMobileNumber;
             card.querySelector('.f-printedName').textContent = detail.employeeName;
+            card.querySelector('.f-signature').hidden = true;
+
+            bulkCardsByRowIndex[rowIndex] = card;
+            container.appendChild(card);
+          });
+        }
+
+        function renderBulkPrintMedia(rowIndexes, mediaList) {
+          rowIndexes.forEach(function (rowIndex, i) {
+            var media = mediaList[i];
+            var card = bulkCardsByRowIndex[rowIndex];
+            if (!card) {
+              return;
+            }
 
             var signatureImg = card.querySelector('.f-signature');
-            if (detail.signatureBase64) {
-              signatureImg.src = 'data:image/png;base64,' + detail.signatureBase64;
+            if (media.signatureBase64) {
+              signatureImg.src = 'data:image/png;base64,' + media.signatureBase64;
+              signatureImg.hidden = false;
             }
 
             var screenshotImg = card.querySelector('.f-screenshot');
-            if (detail.screenshotBase64 && detail.screenshotMimeType !== 'application/pdf') {
-              setScreenshotImage(screenshotImg, detail.screenshotMimeType, detail.screenshotBase64);
+            if (media.screenshotBase64 && media.screenshotMimeType !== 'application/pdf') {
+              setScreenshotImage(screenshotImg, media.screenshotMimeType, media.screenshotBase64);
               screenshotImg.hidden = false;
             }
-
-            container.appendChild(card);
           });
         }
 
         function openDirectBulkPrint(rowIndexesParam) {
           var rowIndexes = rowIndexesParam.split(',').map(Number);
-          Promise.all(rowIndexes.map(function (rowIndex) {
-            return callBackend('getSubmissionDetail', { rowIndex: rowIndex });
-          }))
-            .then(function (details) {
-              renderBulkPrint(details);
+
+          callBackend('getSubmissionsFields', { rowIndexes: rowIndexes })
+            .then(function (fieldsList) {
+              renderBulkPrintFields(rowIndexes, fieldsList);
               document.getElementById('bulkPrintSection').hidden = false;
             })
             .catch(function (err) {
               alert('Could not load the selected records: ' + err.message);
+            });
+
+          callBackend('getSubmissionsMedia', { rowIndexes: rowIndexes })
+            .then(function (mediaList) {
+              renderBulkPrintMedia(rowIndexes, mediaList);
+            })
+            .catch(function (err) {
+              console.error('Could not load screenshots/signatures: ' + err.message);
             });
         }
 
