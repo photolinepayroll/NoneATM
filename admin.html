@@ -626,7 +626,11 @@
       }
 
       .screenshot-image {
-        max-width: 100%;
+        width: 100%;
+        max-width: 360px;
+        aspect-ratio: 16 / 10;
+        object-fit: cover;
+        object-position: top center;
         margin: 0 auto;
         border: 1px solid #eef0f5;
         border-radius: 8px;
@@ -722,7 +726,7 @@
 
         .verified-screenshot-block {
           margin-top: 8px;
-          max-height: 390px;
+          max-height: 220px;
           overflow: hidden;
           page-break-inside: avoid;
         }
@@ -731,7 +735,7 @@
           margin-bottom: 4px;
         }
         .screenshot-image {
-          max-height: 330px;
+          max-width: 260px;
         }
       }
     </style>
