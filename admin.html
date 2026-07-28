@@ -617,6 +617,23 @@
         margin-bottom: 8px;
       }
 
+      .media-error {
+        color: var(--error-red);
+        text-align: center;
+        font-size: 0.9rem;
+        margin: 16px 0 0;
+      }
+
+      .media-error:not([hidden]) {
+        display: block;
+      }
+
+      .retry-media-link {
+        color: var(--error-red);
+        font-weight: 600;
+        text-decoration: underline;
+      }
+
       .bulk-record-card {
         page-break-after: always;
       }
@@ -890,11 +907,13 @@
           </div>
 
           <div class="signature-block">
-            <img id="d-signature" class="signature-image">
+            <img id="d-signature" class="signature-image" hidden>
             <div class="signature-line"></div>
             <div id="d-printedName" class="printed-name"></div>
             <div class="printed-name-label">Signature over Printed Name</div>
           </div>
+
+          <p id="d-media-error" class="media-error" hidden>Could not load the screenshot/signature. <a href="#" class="retry-media-link" id="d-media-retry">Retry</a></p>
 
           <div class="verified-screenshot-block">
             <span class="label">Verified GCash Screenshot</span>
@@ -936,11 +955,13 @@
         </div>
 
         <div class="signature-block">
-          <img class="signature-image f-signature">
+          <img class="signature-image f-signature" hidden>
           <div class="signature-line"></div>
           <div class="printed-name f-printedName"></div>
           <div class="printed-name-label">Signature over Printed Name</div>
         </div>
+
+        <p class="media-error f-media-error" hidden>Could not load the screenshot/signature. <a href="#" class="retry-media-link">Retry</a></p>
 
         <div class="verified-screenshot-block">
           <span class="label">Verified GCash Screenshot</span>
@@ -1306,10 +1327,65 @@
           }
         });
 
+        var BULK_SCREENSHOT_MAX_DIMENSION = 1000;
+        var BULK_SCREENSHOT_QUALITY = 0.8;
+
+        function downscaleDataUrl(dataUrl, maxDimension, quality) {
+          return new Promise(function (resolve) {
+            var img = new Image();
+            img.onload = function () {
+              var scale = Math.min(1, maxDimension / Math.max(img.naturalWidth, img.naturalHeight));
+              if (scale >= 1) {
+                resolve(dataUrl);
+                return;
+              }
+              var canvas = document.createElement('canvas');
+              canvas.width = Math.round(img.naturalWidth * scale);
+              canvas.height = Math.round(img.naturalHeight * scale);
+              var ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = function () {
+              resolve(dataUrl);
+            };
+            img.src = dataUrl;
+          });
+        }
+
+        function setScreenshotImageFromDataUrl(img, dataUrl) {
+          img.classList.remove('screenshot-image--crop');
+          img.onload = function () {
+            if (img.naturalWidth && img.naturalHeight && img.naturalWidth / img.naturalHeight < 1) {
+              img.classList.add('screenshot-image--crop');
+            }
+          };
+          img.src = dataUrl;
+        }
+
+        function setScreenshotImage(img, mimeType, base64) {
+          setScreenshotImageFromDataUrl(img, 'data:' + mimeType + ';base64,' + base64);
+        }
+
+        var currentDetailRowIndex = null;
+
+        function loadDetailMedia(rowIndex) {
+          document.getElementById('d-media-error').hidden = true;
+          callBackend('getSubmissionsMedia', { rowIndexes: [rowIndex] })
+            .then(function (list) {
+              renderDetailMedia(list[0]);
+            })
+            .catch(function (err) {
+              console.error('Could not load screenshot/signature: ' + err.message);
+              document.getElementById('d-media-error').hidden = false;
+            });
+        }
+
         function viewDetail(rowIndex) {
-          var screenshotImg = document.getElementById('d-screenshot');
-          screenshotImg.hidden = true;
+          currentDetailRowIndex = rowIndex;
+          document.getElementById('d-screenshot').hidden = true;
           document.getElementById('d-signature').hidden = true;
+          document.getElementById('d-media-error').hidden = true;
 
           callBackend('getSubmissionsFields', { rowIndexes: [rowIndex] })
             .then(function (list) {
@@ -1321,24 +1397,15 @@
               alert('Could not load this record: ' + err.message);
             });
 
-          callBackend('getSubmissionsMedia', { rowIndexes: [rowIndex] })
-            .then(function (list) {
-              renderDetailMedia(list[0]);
-            })
-            .catch(function (err) {
-              console.error('Could not load screenshot/signature: ' + err.message);
-            });
+          loadDetailMedia(rowIndex);
         }
 
-        function setScreenshotImage(img, mimeType, base64) {
-          img.classList.remove('screenshot-image--crop');
-          img.onload = function () {
-            if (img.naturalWidth && img.naturalHeight && img.naturalWidth / img.naturalHeight < 1) {
-              img.classList.add('screenshot-image--crop');
-            }
-          };
-          img.src = 'data:' + mimeType + ';base64,' + base64;
-        }
+        document.getElementById('d-media-retry').addEventListener('click', function (e) {
+          e.preventDefault();
+          if (currentDetailRowIndex !== null) {
+            loadDetailMedia(currentDetailRowIndex);
+          }
+        });
 
         function renderDetailFields(detail) {
           document.getElementById('d-timestamp').textContent = detail.timestamp;
@@ -1387,6 +1454,7 @@
             card.querySelector('.f-gcashMobileNumber').textContent = detail.gcashMobileNumber;
             card.querySelector('.f-printedName').textContent = detail.employeeName;
             card.querySelector('.f-signature').hidden = true;
+            card.querySelector('.f-media-error').hidden = true;
 
             bulkCardsByRowIndex[rowIndex] = card;
             container.appendChild(card);
@@ -1407,13 +1475,53 @@
               signatureImg.hidden = false;
             }
 
-            var screenshotImg = card.querySelector('.f-screenshot');
             if (media.screenshotBase64 && media.screenshotMimeType !== 'application/pdf') {
-              setScreenshotImage(screenshotImg, media.screenshotMimeType, media.screenshotBase64);
-              screenshotImg.hidden = false;
+              var screenshotImg = card.querySelector('.f-screenshot');
+              var dataUrl = 'data:' + media.screenshotMimeType + ';base64,' + media.screenshotBase64;
+              downscaleDataUrl(dataUrl, BULK_SCREENSHOT_MAX_DIMENSION, BULK_SCREENSHOT_QUALITY).then(function (resizedDataUrl) {
+                setScreenshotImageFromDataUrl(screenshotImg, resizedDataUrl);
+                screenshotImg.hidden = false;
+              });
             }
           });
         }
+
+        function loadBulkMedia(rowIndexes) {
+          rowIndexes.forEach(function (rowIndex) {
+            var card = bulkCardsByRowIndex[rowIndex];
+            if (card) {
+              card.querySelector('.f-media-error').hidden = true;
+            }
+          });
+
+          callBackend('getSubmissionsMedia', { rowIndexes: rowIndexes })
+            .then(function (mediaList) {
+              renderBulkPrintMedia(rowIndexes, mediaList);
+            })
+            .catch(function (err) {
+              console.error('Could not load screenshots/signatures: ' + err.message);
+              rowIndexes.forEach(function (rowIndex) {
+                var card = bulkCardsByRowIndex[rowIndex];
+                if (card) {
+                  card.querySelector('.f-media-error').hidden = false;
+                }
+              });
+            });
+        }
+
+        document.getElementById('bulkPrintCards').addEventListener('click', function (e) {
+          if (!e.target.classList.contains('retry-media-link')) {
+            return;
+          }
+          e.preventDefault();
+          var card = e.target.closest('.bulk-record-card');
+          var rowIndex = Number(Object.keys(bulkCardsByRowIndex).find(function (key) {
+            return bulkCardsByRowIndex[key] === card;
+          }));
+          if (!isNaN(rowIndex)) {
+            loadBulkMedia([rowIndex]);
+          }
+        });
 
         function openDirectBulkPrint(rowIndexesParam) {
           var rowIndexes = rowIndexesParam.split(',').map(Number);
@@ -1422,17 +1530,10 @@
             .then(function (fieldsList) {
               renderBulkPrintFields(rowIndexes, fieldsList);
               document.getElementById('bulkPrintSection').hidden = false;
+              loadBulkMedia(rowIndexes);
             })
             .catch(function (err) {
               alert('Could not load the selected records: ' + err.message);
-            });
-
-          callBackend('getSubmissionsMedia', { rowIndexes: rowIndexes })
-            .then(function (mediaList) {
-              renderBulkPrintMedia(rowIndexes, mediaList);
-            })
-            .catch(function (err) {
-              console.error('Could not load screenshots/signatures: ' + err.message);
             });
         }
 
