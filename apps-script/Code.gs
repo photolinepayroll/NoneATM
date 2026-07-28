@@ -14,14 +14,11 @@ const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 const LIST_SUBMISSIONS_CACHE_KEY = 'listSubmissions_v1';
 const LIST_SUBMISSIONS_CACHE_TTL_SECONDS = 30;
-const PUBLIC_LIST_SHEET_NAME = 'PublicList';
-const PUBLIC_LIST_HEADERS = ['Timestamp', 'Employee Name', 'Branch/Department'];
 
 function setup() {
   var sheet = getOrCreateSheet_();
   var folder = getOrCreateFolder_();
   ensureAdminPasscode_();
-  rebuildPublicList_();
   Logger.log('Sheet ready: ' + sheet.getParent().getUrl());
   Logger.log('Folder ready: ' + folder.getUrl());
 }
@@ -63,74 +60,6 @@ function getOrCreateFolder_() {
     return folders.next();
   }
   return DriveApp.createFolder(FOLDER_NAME);
-}
-
-// Mirrors only the non-sensitive columns (no mobile numbers, no file
-// links) into a separate sheet meant to be published to the web (File >
-// Share > Publish to web, selecting just this sheet, CSV format). The
-// admin dashboard's initial list view reads that published CSV directly -
-// a plain Google-served static file, not an Apps Script call - so it loads
-// instantly and isn't subject to the exec/echo redirect slowness documented
-// in CLAUDE.md. Row N here always corresponds to row N in the main sheet:
-// both are only ever appended to, in lockstep, via appendToPublicList_
-// below - never reordered or filtered independently - so a rowIndex read
-// from the public CSV can be passed straight to getSubmissionsFields/
-// getSubmissionsMedia to fetch that same row's protected details.
-function getOrCreatePublicListSheet_() {
-  var ss = SpreadsheetApp.openById(SHEET_ID);
-  var sheet = ss.getSheetByName(PUBLIC_LIST_SHEET_NAME);
-  if (!sheet) {
-    sheet = ss.insertSheet(PUBLIC_LIST_SHEET_NAME);
-  }
-  var firstRow = sheet.getRange(1, 1, 1, PUBLIC_LIST_HEADERS.length).getValues()[0];
-  var hasHeaders = PUBLIC_LIST_HEADERS.every(function (h, i) { return firstRow[i] === h; });
-  if (!hasHeaders) {
-    sheet.getRange(1, 1, 1, PUBLIC_LIST_HEADERS.length).setValues([PUBLIC_LIST_HEADERS]);
-    sheet.setFrozenRows(1);
-  }
-  return sheet;
-}
-
-// Rebuilds PublicList from scratch against the current main-sheet rows.
-// Safe to re-run any time (e.g. every time setup() is run) - it both
-// backfills rows that existed before this feature did and stays correct
-// no matter how many times it's called, since it always fully replaces
-// PublicList's data rows rather than appending on top of whatever's
-// already there.
-function rebuildPublicList_() {
-  var publicSheet = getOrCreatePublicListSheet_();
-  var existingLastRow = publicSheet.getLastRow();
-  if (existingLastRow > 1) {
-    publicSheet.getRange(2, 1, existingLastRow - 1, PUBLIC_LIST_HEADERS.length).clearContent();
-  }
-
-  var sheet = getSheet_();
-  var lastDataRow = sheet.getLastRow();
-  if (lastDataRow < 2) {
-    return;
-  }
-
-  var data = sheet.getRange(2, 1, lastDataRow - 1, 3).getValues();
-  var rows = data.map(function (row) {
-    return [
-      Utilities.formatDate(new Date(row[0]), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'),
-      row[1],
-      row[2]
-    ];
-  });
-  publicSheet.getRange(2, 1, rows.length, PUBLIC_LIST_HEADERS.length).setValues(rows);
-}
-
-// Keeps PublicList in lockstep with the main sheet - see
-// getOrCreatePublicListSheet_ for why row alignment between the two must
-// never drift.
-function appendToPublicList_(timestamp, employeeName, branchDepartment) {
-  var sheet = getOrCreatePublicListSheet_();
-  sheet.appendRow([
-    Utilities.formatDate(timestamp, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'),
-    sanitizeForSheet_(employeeName),
-    sanitizeForSheet_(branchDepartment)
-  ]);
 }
 
 function doGet(e) {
@@ -229,7 +158,6 @@ function submitForm(formData) {
       screenshotFile.getUrl(),
       signatureFile.getUrl()
     ]);
-    appendToPublicList_(now, formData.employeeName, formData.branchDepartment);
     invalidateListSubmissionsCache_();
   } catch (e) {
     createdFiles.forEach(function (file) {

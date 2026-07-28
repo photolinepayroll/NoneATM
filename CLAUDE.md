@@ -22,28 +22,6 @@ The backend is **`apps-script/Code.gs`** — a single Google Apps Script file sh
 - Exposes `doPost` actions: `listSubmissions`, `getSubmissionDetail`, `saveVerificationReport` (if present), plus the implicit form-submit path.
 - Gates all admin actions behind `requireAdmin_(passcode)`, checked against a passcode stored in Script Properties (`ADMIN_PASSCODE`, set by running `setup()` once in the Apps Script editor).
 
-## Apps Script Web App exec/echo redirect is slow and sometimes fails outright
-
-Every `doPost`/`doGet` call to the deployed exec URL is a two-hop request: `script.google.com/.../exec` returns a 302 redirect to `script.googleusercontent.com/macros/echo?user_content_key=...`, and that second hop actually delivers the response. Confirmed via the browser Network tab in a live debugging session: the first hop is fast (~1s), but the second hop has been observed taking 6-10+ seconds and returning a **404** outright, or stalling past 30 seconds with no response at all. This isn't network/firewall-specific — it reproduced consistently in the same browser/network across multiple attempts — and it's the root cause of three separate symptoms chased in one session: intermittent "Unexpected token '<', <!DOCTYPE" errors (an HTML error page instead of JSON), a hard CORB block when a same-origin-adjacent JSONP `<script>` tag approach was tried instead of `fetch()` (reverted — see git history around "Switch admin.html data calls from fetch() POST to JSONP GET" / its revert commit), and 30+ second hangs on every single admin action including cache-hit calls that do almost no script-side work.
-
-Mitigations in place, in order of where they apply:
-- `admin.html`'s `callBackend()` wraps every call in a 12-second `AbortController` timeout with up to 2 retries (fresh connection each time) - recovers from transient stalls, doesn't fix the underlying redirect reliability.
-- The admin dashboard's **list view** doesn't call Apps Script at all - see the "PublicList sheet" section below. This is the only view that fully sidesteps the exec/echo redirect; everything reached via View/Print/Export still pays this cost.
-- Do not re-attempt a JSONP/`<script>`-tag approach as a fix for this - it trades an intermittent failure for a deterministic CORB block in Chrome, confirmed live.
-
-## PublicList sheet — the safe, fast path for the admin list view
-
-`Code.gs` maintains a second sheet tab, **`PublicList`** (name/branch/timestamp only - no mobile numbers, no file links), kept in lockstep with the main data sheet: `appendToPublicList_()` is called right after every `submitForm()` append, and `rebuildPublicList_()` (called from `setup()`) fully rebuilds it from the main sheet, so it's safe to re-run and also backfills anything that existed before this feature did. Row N in `PublicList` always corresponds to row N in the main sheet — both are strictly append-only, in the same order, never independently sorted/filtered/deleted — so a `rowIndex` read from `PublicList` can be passed straight into `getSubmissionsFields`/`getSubmissionsMedia`.
-
-This sheet is published to the web (File → Share → Publish to web → select the `PublicList` sheet specifically, not the whole document → CSV format), which serves it as a static file directly from Google Sheets infrastructure — no Apps Script execution, no exec/echo redirect, loads instantly. `admin.html`'s `PUBLIC_LIST_CSV_URL` constant points at that published URL and `loadPublicPreview()` fetches/parses it client-side to render the dashboard's initial table (with a "View / Print" button per row that opens the existing gated `?rowIndex=` flow), with zero passcode required for that initial view.
-
-**Deliberately excluded from `PublicList` and this whole public path:** mobile numbers (`Contact Number`, `Verified GCash Mobile Number`), the GCash screenshot, and the e-signature. This was an explicit, discussed decision — those fields are financial-account-linked PII for real, named employees, publishing them without consent is a Data Privacy Act (RA 10173) concern for Photoline, not just a technical trade-off. They remain reachable only through `getSubmissionsFields`/`getSubmissionsMedia`, still fully gated behind `requireAdmin_(passcode)` exactly as before. Do not widen what's mirrored into `PublicList` without the same explicit conversation.
-
-**One-time manual steps whenever `PublicList` needs (re)publishing** (can't be automated via `clasp deploy` or any Apps Script API — Google has no API for "Publish to web"):
-1. Run `setup()` once in the Apps Script editor (creates/backfills the `PublicList` tab).
-2. In the Google Sheet: File → Share → Publish to web → select `PublicList` (not "Entire Document") → CSV → Publish → copy the resulting URL.
-3. Paste that URL into `PUBLIC_LIST_CSV_URL` in `admin.html` and push.
-
 ## Deployment — already automated, do not tell the user to redeploy manually
 
 `.github/workflows/deploy.yml` runs on every push to `main` that touches `apps-script/**`: it installs `clasp`, pushes the code, and runs `clasp deploy -i <DEPLOYMENT_ID>` to update the **existing** live Web App deployment. This has been verified working (checked via the GitHub Actions API — runs against this workflow show `conclusion: success` for recent commits touching `Code.gs`).
