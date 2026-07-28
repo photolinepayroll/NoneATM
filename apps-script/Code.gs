@@ -30,9 +30,19 @@ function ensureAdminPasscode_() {
   }
 }
 
+// Plain sheet handle, no header round-trip. Use this for every read-only
+// admin call (listSubmissions/getSubmissionsFields/getSubmissionsMedia) -
+// the header row never changes after setup(), so re-verifying it on every
+// single request just adds a spreadsheet round-trip for nothing.
+function getSheet_() {
+  return SpreadsheetApp.openById(SHEET_ID).getSheets()[0];
+}
+
+// Header-verifying variant - only needed on the write path (submitForm)
+// and one-time setup(), where a missing/wrong header row would actually
+// break appendRow's column alignment.
 function getOrCreateSheet_() {
-  var ss = SpreadsheetApp.openById(SHEET_ID);
-  var sheet = ss.getSheets()[0];
+  var sheet = getSheet_();
   var firstRow = sheet.getRange(1, 1, 1, SHEET_HEADERS.length).getValues()[0];
   var hasHeaders = SHEET_HEADERS.every(function (h, i) { return firstRow[i] === h; });
   if (!hasHeaders) {
@@ -232,7 +242,7 @@ function requireAdmin_(passcode) {
 
 function listSubmissions(passcode) {
   requireAdmin_(passcode);
-  var sheet = getOrCreateSheet_();
+  var sheet = getSheet_();
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) {
     return [];
@@ -259,13 +269,12 @@ function listSubmissions(passcode) {
 // getSubmissionsMedia actions below instead - see CLAUDE.md.
 function getSubmissionDetail(passcode, rowIndex) {
   requireAdmin_(passcode);
-  var sheet = getOrCreateSheet_();
+  var sheet = getSheet_();
   var row = sheet.getRange(rowIndex, 1, 1, SHEET_HEADERS.length).getValues()[0];
 
-  var screenshotId = extractFileId_(row[6]);
-  var signatureId = extractFileId_(row[7]);
-  var screenshotBlob = screenshotId ? DriveApp.getFileById(screenshotId).getBlob() : null;
-  var signatureBlob = signatureId ? DriveApp.getFileById(signatureId).getBlob() : null;
+  var blobs = fetchFilesParallel_([extractFileId_(row[6]), extractFileId_(row[7])]);
+  var screenshotBlob = blobs[0];
+  var signatureBlob = blobs[1];
 
   return {
     timestamp: Utilities.formatDate(new Date(row[0]), Session.getScriptTimeZone(), 'MMMM d, yyyy h:mm a'),
@@ -282,7 +291,7 @@ function getSubmissionDetail(passcode, rowIndex) {
 
 function getSubmissionsFields(passcode, rowIndexes) {
   requireAdmin_(passcode);
-  var sheet = getOrCreateSheet_();
+  var sheet = getSheet_();
   return rowIndexes.map(function (rowIndex) {
     var row = sheet.getRange(rowIndex, 1, 1, SHEET_HEADERS.length).getValues()[0];
     return {
@@ -298,19 +307,68 @@ function getSubmissionsFields(passcode, rowIndexes) {
 
 function getSubmissionsMedia(passcode, rowIndexes) {
   requireAdmin_(passcode);
-  var sheet = getOrCreateSheet_();
-  return rowIndexes.map(function (rowIndex) {
-    var row = sheet.getRange(rowIndex, 1, 1, SHEET_HEADERS.length).getValues()[0];
-    var screenshotId = extractFileId_(row[6]);
-    var signatureId = extractFileId_(row[7]);
-    var screenshotBlob = screenshotId ? DriveApp.getFileById(screenshotId).getBlob() : null;
-    var signatureBlob = signatureId ? DriveApp.getFileById(signatureId).getBlob() : null;
+  var sheet = getSheet_();
+  var rows = rowIndexes.map(function (rowIndex) {
+    return sheet.getRange(rowIndex, 1, 1, SHEET_HEADERS.length).getValues()[0];
+  });
+
+  // One screenshot + one signature file id per row, fetched together below
+  // instead of one DriveApp.getFileById().getBlob() call at a time - see
+  // fetchFilesParallel_.
+  var fileIds = [];
+  rows.forEach(function (row) {
+    fileIds.push(extractFileId_(row[6]), extractFileId_(row[7]));
+  });
+  var blobs = fetchFilesParallel_(fileIds);
+
+  return rows.map(function (row, i) {
+    var screenshotBlob = blobs[i * 2];
+    var signatureBlob = blobs[i * 2 + 1];
     return {
       screenshotBase64: screenshotBlob ? Utilities.base64Encode(screenshotBlob.getBytes()) : null,
       screenshotMimeType: screenshotBlob ? screenshotBlob.getContentType() : null,
       signatureBase64: signatureBlob ? Utilities.base64Encode(signatureBlob.getBytes()) : null
     };
   });
+}
+
+// DriveApp.getFileById(id).getBlob() is a blocking round-trip per file, so
+// fetching a screenshot and signature (or several records' worth, in bulk
+// print) one at a time serializes N round-trips end to end. This issues
+// them as a single batched UrlFetchApp.fetchAll() call instead, which the
+// Apps Script runtime executes concurrently, so total wait time is roughly
+// the slowest single file instead of the sum of all of them.
+// Returns an array the same length/order as fileIds; a null id or a failed
+// individual fetch (e.g. a file removed from Drive) resolves to null rather
+// than aborting the whole batch.
+function fetchFilesParallel_(fileIds) {
+  var token = ScriptApp.getOAuthToken();
+  var requestIndexes = [];
+  var requests = [];
+  fileIds.forEach(function (id, i) {
+    if (!id) {
+      return;
+    }
+    requests.push({
+      url: 'https://www.googleapis.com/drive/v3/files/' + id + '?alt=media',
+      headers: { Authorization: 'Bearer ' + token },
+      muteHttpExceptions: true
+    });
+    requestIndexes.push(i);
+  });
+
+  var blobs = new Array(fileIds.length).fill(null);
+  if (requests.length === 0) {
+    return blobs;
+  }
+
+  var responses = UrlFetchApp.fetchAll(requests);
+  responses.forEach(function (response, j) {
+    if (response.getResponseCode() === 200) {
+      blobs[requestIndexes[j]] = response.getBlob();
+    }
+  });
+  return blobs;
 }
 
 function extractFileId_(url) {
