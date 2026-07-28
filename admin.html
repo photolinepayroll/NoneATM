@@ -1400,16 +1400,28 @@
         }
 
         var currentDetailRowIndex = null;
+        // Bumped on every viewDetail()/retry so a slow response from an
+        // older click can't overwrite what's on screen for a newer one -
+        // rapid View clicks on two different rows would otherwise race,
+        // with whichever network response happened to land last winning
+        // regardless of click order.
+        var detailRequestToken = 0;
 
-        function loadDetailMedia(rowIndex) {
+        function loadDetailMedia(rowIndex, requestToken) {
           document.getElementById('d-media-error').hidden = true;
           document.getElementById('d-media-loading').hidden = false;
           callBackend('getSubmissionsMedia', { rowIndexes: [rowIndex] })
             .then(function (list) {
+              if (requestToken !== detailRequestToken) {
+                return;
+              }
               document.getElementById('d-media-loading').hidden = true;
               renderDetailMedia(list[0]);
             })
             .catch(function (err) {
+              if (requestToken !== detailRequestToken) {
+                return;
+              }
               console.error('Could not load screenshot/signature: ' + err.message);
               document.getElementById('d-media-loading').hidden = true;
               document.getElementById('d-media-error').hidden = false;
@@ -1418,27 +1430,34 @@
 
         function viewDetail(rowIndex) {
           currentDetailRowIndex = rowIndex;
+          var requestToken = ++detailRequestToken;
           document.getElementById('d-screenshot').hidden = true;
           document.getElementById('d-signature').hidden = true;
           document.getElementById('d-media-error').hidden = true;
 
           callBackend('getSubmissionsFields', { rowIndexes: [rowIndex] })
             .then(function (list) {
+              if (requestToken !== detailRequestToken) {
+                return;
+              }
               renderDetailFields(list[0]);
               document.getElementById('dashboardSection').hidden = true;
               document.getElementById('detailSection').hidden = false;
             })
             .catch(function (err) {
+              if (requestToken !== detailRequestToken) {
+                return;
+              }
               alert('Could not load this record: ' + err.message);
             });
 
-          loadDetailMedia(rowIndex);
+          loadDetailMedia(rowIndex, requestToken);
         }
 
         document.getElementById('d-media-retry').addEventListener('click', function (e) {
           e.preventDefault();
           if (currentDetailRowIndex !== null) {
-            loadDetailMedia(currentDetailRowIndex);
+            loadDetailMedia(currentDetailRowIndex, ++detailRequestToken);
           }
         });
 
@@ -1504,7 +1523,6 @@
             if (!card) {
               return;
             }
-            card.querySelector('.f-media-loading').hidden = true;
 
             var signatureImg = card.querySelector('.f-signature');
             if (media.signatureBase64) {
@@ -1518,7 +1536,14 @@
               downscaleDataUrl(dataUrl, BULK_SCREENSHOT_MAX_DIMENSION, BULK_SCREENSHOT_QUALITY).then(function (resizedDataUrl) {
                 setScreenshotImageFromDataUrl(screenshotImg, resizedDataUrl);
                 screenshotImg.hidden = false;
+                // Only clear the spinner once the screenshot is actually on
+                // screen - hiding it as soon as the network response
+                // arrived (before this async downscale finished) let a
+                // Ctrl+P in that gap print a blank/missing screenshot.
+                card.querySelector('.f-media-loading').hidden = true;
               });
+            } else {
+              card.querySelector('.f-media-loading').hidden = true;
             }
           });
         }
@@ -1594,13 +1619,20 @@
         if (directRowIndex !== null || directRowIndexes !== null) {
           var directSavedPasscode = sessionStorage.getItem('gcashAdminPasscode');
           if (directSavedPasscode) {
-            passcode = directSavedPasscode;
             document.getElementById('loginSection').hidden = true;
-            if (directRowIndexes !== null) {
-              openDirectBulkPrint(directRowIndexes);
-            } else {
-              viewDetail(Number(directRowIndex));
-            }
+            attemptLogin(directSavedPasscode)
+              .then(function () {
+                if (directRowIndexes !== null) {
+                  document.getElementById('dashboardSection').hidden = true;
+                  openDirectBulkPrint(directRowIndexes);
+                } else {
+                  viewDetail(Number(directRowIndex));
+                }
+              })
+              .catch(function () {
+                sessionStorage.removeItem('gcashAdminPasscode');
+                showLogin();
+              });
           } else {
             showLogin();
           }

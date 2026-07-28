@@ -332,43 +332,90 @@ function getSubmissionsMedia(passcode, rowIndexes) {
   });
 }
 
+// Cap how many files go into one UrlFetchApp.fetchAll() call. Bulk print
+// with a large selection could otherwise push hundreds of simultaneous
+// requests into a single call; chunking keeps each batch reasonably sized
+// while still fetching well ahead of one-file-at-a-time.
+var FETCH_CHUNK_SIZE = 20;
+
 // DriveApp.getFileById(id).getBlob() is a blocking round-trip per file, so
 // fetching a screenshot and signature (or several records' worth, in bulk
 // print) one at a time serializes N round-trips end to end. This issues
-// them as a single batched UrlFetchApp.fetchAll() call instead, which the
-// Apps Script runtime executes concurrently, so total wait time is roughly
-// the slowest single file instead of the sum of all of them.
-// Returns an array the same length/order as fileIds; a null id or a failed
-// individual fetch (e.g. a file removed from Drive) resolves to null rather
-// than aborting the whole batch.
+// them as batched UrlFetchApp.fetchAll() calls instead, which the Apps
+// Script runtime executes concurrently, so total wait time is roughly the
+// slowest single file in a batch instead of the sum of all of them.
+//
+// Returns an array the same length/order as fileIds. A null/blank id
+// resolves to null (no file to fetch). A file that genuinely doesn't exist
+// on Drive (404) also resolves to null. Anything else going wrong - the
+// whole fetchAll() batch throwing (e.g. a not-yet-granted OAuth scope right
+// after this code first deploys), or an individual response coming back
+// non-200/non-404 (permission hiccup, rate limiting, a transient 5xx) -
+// falls back to the slower but dependable DriveApp.getFileById().getBlob()
+// for just that file, rather than either taking down the whole request or
+// silently reporting a real file as "not uploaded".
 function fetchFilesParallel_(fileIds) {
-  var token = ScriptApp.getOAuthToken();
-  var requestIndexes = [];
-  var requests = [];
-  fileIds.forEach(function (id, i) {
-    if (!id) {
-      return;
-    }
-    requests.push({
-      url: 'https://www.googleapis.com/drive/v3/files/' + id + '?alt=media',
-      headers: { Authorization: 'Bearer ' + token },
-      muteHttpExceptions: true
-    });
-    requestIndexes.push(i);
-  });
-
   var blobs = new Array(fileIds.length).fill(null);
-  if (requests.length === 0) {
+  var idsToFetch = [];
+  fileIds.forEach(function (id, i) {
+    if (id) {
+      idsToFetch.push(i);
+    }
+  });
+  if (idsToFetch.length === 0) {
     return blobs;
   }
 
-  var responses = UrlFetchApp.fetchAll(requests);
-  responses.forEach(function (response, j) {
-    if (response.getResponseCode() === 200) {
-      blobs[requestIndexes[j]] = response.getBlob();
+  var token;
+  try {
+    token = ScriptApp.getOAuthToken();
+  } catch (err) {
+    idsToFetch.forEach(function (i) {
+      blobs[i] = fetchFileViaDriveApp_(fileIds[i]);
+    });
+    return blobs;
+  }
+
+  for (var start = 0; start < idsToFetch.length; start += FETCH_CHUNK_SIZE) {
+    var chunkIndexes = idsToFetch.slice(start, start + FETCH_CHUNK_SIZE);
+    var requests = chunkIndexes.map(function (i) {
+      return {
+        url: 'https://www.googleapis.com/drive/v3/files/' + fileIds[i] + '?alt=media',
+        headers: { Authorization: 'Bearer ' + token },
+        muteHttpExceptions: true
+      };
+    });
+
+    var responses;
+    try {
+      responses = UrlFetchApp.fetchAll(requests);
+    } catch (err) {
+      chunkIndexes.forEach(function (i) {
+        blobs[i] = fetchFileViaDriveApp_(fileIds[i]);
+      });
+      continue;
     }
-  });
+
+    responses.forEach(function (response, j) {
+      var i = chunkIndexes[j];
+      var code = response.getResponseCode();
+      if (code === 200) {
+        blobs[i] = response.getBlob();
+      } else if (code !== 404) {
+        blobs[i] = fetchFileViaDriveApp_(fileIds[i]);
+      }
+    });
+  }
+
   return blobs;
+}
+
+function fetchFileViaDriveApp_(fileId) {
+  try {
+    return DriveApp.getFileById(fileId).getBlob();
+  } catch (err) {
+    return null;
+  }
 }
 
 function extractFileId_(url) {
