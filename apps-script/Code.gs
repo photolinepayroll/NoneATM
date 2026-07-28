@@ -12,6 +12,8 @@ const SHEET_HEADERS = [
 ];
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+const LIST_SUBMISSIONS_CACHE_KEY = 'listSubmissions_v1';
+const LIST_SUBMISSIONS_CACHE_TTL_SECONDS = 30;
 
 function setup() {
   var sheet = getOrCreateSheet_();
@@ -245,25 +247,71 @@ function requireAdmin_(passcode) {
 
 function listSubmissions(passcode) {
   requireAdmin_(passcode);
+
+  var cache = CacheService.getScriptCache();
+  var cached = getCachedListSubmissions_(cache);
+  if (cached) {
+    return cached;
+  }
+
   var sheet = getSheet_();
   var lastRow = sheet.getLastRow();
-  if (lastRow < 2) {
-    return [];
-  }
-  var data = sheet.getRange(2, 1, lastRow - 1, SHEET_HEADERS.length).getValues();
   var result = [];
-  for (var i = 0; i < data.length; i++) {
-    result.push({
-      rowIndex: i + 2,
-      timestamp: Utilities.formatDate(new Date(data[i][0]), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'),
-      timestampIso: Utilities.formatDate(new Date(data[i][0]), Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss"),
-      employeeName: data[i][1],
-      branchDepartment: data[i][2],
-      contactNumber: normalizeMobileNumber_(data[i][3]),
-      gcashMobileNumber: normalizeMobileNumber_(data[i][4])
-    });
+  if (lastRow >= 2) {
+    var data = sheet.getRange(2, 1, lastRow - 1, SHEET_HEADERS.length).getValues();
+    for (var i = 0; i < data.length; i++) {
+      var timestamp = new Date(data[i][0]);
+      result.push({
+        rowIndex: i + 2,
+        timestamp: Utilities.formatDate(timestamp, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'),
+        timestampIso: Utilities.formatDate(timestamp, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss"),
+        employeeName: data[i][1],
+        branchDepartment: data[i][2],
+        contactNumber: normalizeMobileNumber_(data[i][3]),
+        gcashMobileNumber: normalizeMobileNumber_(data[i][4])
+      });
+    }
   }
+
+  setCachedListSubmissions_(cache, result);
   return result;
+}
+
+// Returns the cached listSubmissions result (parsed), or null on a cache
+// miss or any unexpected problem reading/parsing the cache - a cache
+// problem must never break the dashboard, only skip the speedup.
+function getCachedListSubmissions_(cache) {
+  try {
+    var raw = cache.get(LIST_SUBMISSIONS_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+// Best-effort cache write. CacheService rejects values over 100KB per key;
+// once the Sheet has enough rows for the JSON to cross that, this silently
+// stops caching rather than throwing - every call just falls back to a live
+// Sheet read, same as before this change existed.
+function setCachedListSubmissions_(cache, result) {
+  try {
+    cache.put(LIST_SUBMISSIONS_CACHE_KEY, JSON.stringify(result), LIST_SUBMISSIONS_CACHE_TTL_SECONDS);
+  } catch (err) {
+    // Too large for a single cache entry, or some other transient
+    // CacheService issue - not caching this round is fine.
+  }
+}
+
+// Called by submitForm right after a successful appendRow so a brand-new
+// submission is visible on the very next listSubmissions call instead of
+// waiting out LIST_SUBMISSIONS_CACHE_TTL_SECONDS.
+function invalidateListSubmissionsCache_() {
+  try {
+    CacheService.getScriptCache().remove(LIST_SUBMISSIONS_CACHE_KEY);
+  } catch (err) {
+    // Not fatal - at worst the next Refresh serves the stale cached list
+    // until the TTL expires naturally.
+  }
 }
 
 // Kept for apps-script/Admin.html (legacy surface), which calls this
