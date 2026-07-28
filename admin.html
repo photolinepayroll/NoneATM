@@ -628,6 +628,35 @@
         display: block;
       }
 
+      .media-loading {
+        color: #666;
+        text-align: center;
+        font-size: 0.9rem;
+        margin: 16px 0 0;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .media-loading:not([hidden]) {
+        display: flex;
+      }
+
+      .media-spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid #d8dce6;
+        border-top-color: var(--photoline-blue);
+        border-radius: 50%;
+        animation: media-spin 0.7s linear infinite;
+      }
+
+      @keyframes media-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
       .retry-media-link {
         color: var(--error-red);
         font-weight: 600;
@@ -679,7 +708,8 @@
       }
 
       @media print {
-        .no-print {
+        .no-print,
+        .media-loading {
           display: none !important;
         }
         body {
@@ -913,6 +943,7 @@
             <div class="printed-name-label">Signature over Printed Name</div>
           </div>
 
+          <p id="d-media-loading" class="media-loading" hidden><span class="media-spinner" aria-hidden="true"></span>Loading screenshot &amp; signature&hellip;</p>
           <p id="d-media-error" class="media-error" hidden>Could not load the screenshot/signature. <a href="#" class="retry-media-link" id="d-media-retry">Retry</a></p>
 
           <div class="verified-screenshot-block">
@@ -961,6 +992,7 @@
           <div class="printed-name-label">Signature over Printed Name</div>
         </div>
 
+        <p class="media-loading f-media-loading" hidden><span class="media-spinner" aria-hidden="true"></span>Loading screenshot &amp; signature&hellip;</p>
         <p class="media-error f-media-error" hidden>Could not load the screenshot/signature. <a href="#" class="retry-media-link">Retry</a></p>
 
         <div class="verified-screenshot-block">
@@ -1371,12 +1403,15 @@
 
         function loadDetailMedia(rowIndex) {
           document.getElementById('d-media-error').hidden = true;
+          document.getElementById('d-media-loading').hidden = false;
           callBackend('getSubmissionsMedia', { rowIndexes: [rowIndex] })
             .then(function (list) {
+              document.getElementById('d-media-loading').hidden = true;
               renderDetailMedia(list[0]);
             })
             .catch(function (err) {
               console.error('Could not load screenshot/signature: ' + err.message);
+              document.getElementById('d-media-loading').hidden = true;
               document.getElementById('d-media-error').hidden = false;
             });
         }
@@ -1455,6 +1490,7 @@
             card.querySelector('.f-printedName').textContent = detail.employeeName;
             card.querySelector('.f-signature').hidden = true;
             card.querySelector('.f-media-error').hidden = true;
+            card.querySelector('.f-media-loading').hidden = false;
 
             bulkCardsByRowIndex[rowIndex] = card;
             container.appendChild(card);
@@ -1468,6 +1504,7 @@
             if (!card) {
               return;
             }
+            card.querySelector('.f-media-loading').hidden = true;
 
             var signatureImg = card.querySelector('.f-signature');
             if (media.signatureBase64) {
@@ -1491,6 +1528,7 @@
             var card = bulkCardsByRowIndex[rowIndex];
             if (card) {
               card.querySelector('.f-media-error').hidden = true;
+              card.querySelector('.f-media-loading').hidden = false;
             }
           });
 
@@ -1503,6 +1541,7 @@
               rowIndexes.forEach(function (rowIndex) {
                 var card = bulkCardsByRowIndex[rowIndex];
                 if (card) {
+                  card.querySelector('.f-media-loading').hidden = true;
                   card.querySelector('.f-media-error').hidden = false;
                 }
               });
