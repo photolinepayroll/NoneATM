@@ -94,6 +94,9 @@ function doPost(e) {
   if (body.action === 'getSubmissionsMedia') {
     return jsonResponse_(safeAdminCall_(function () { return getSubmissionsMedia(body.passcode, body.rowIndexes); }));
   }
+  if (body.action) {
+    return jsonResponse_({ success: false, errors: ['Unknown action "' + body.action + '". The deployed backend may be out of sync with this page — try a hard refresh.'] });
+  }
 
   var result;
   try {
