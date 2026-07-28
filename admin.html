@@ -1015,20 +1015,63 @@
         var directRowIndex = new URLSearchParams(location.search).get('rowIndex');
         var directRowIndexes = new URLSearchParams(location.search).get('rowIndexes');
 
+        var jsonpCallCounter = 0;
+        var JSONP_TIMEOUT_MS = 20000;
+
+        // JSONP via a dynamically-created <script> tag instead of fetch().
+        // fetch() was intermittently receiving an HTML error page instead of
+        // JSON from the Apps Script exec URL's redirect hop (script.google.com
+        // -> script.googleusercontent.com) in some network/browser
+        // environments; a <script src> load follows that same redirect at the
+        // browser's native script-loading layer, which doesn't have the same
+        // failure mode. Still fully passcode-gated server-side (requireAdmin_
+        // runs on every call, same as before) - the only change is that the
+        // passcode now travels as a URL query parameter instead of a POST
+        // body, so it can end up in browser history, unlike before.
         function callBackend(action, extra) {
-          var payload = Object.assign({ action: action, passcode: passcode }, extra);
-          return fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(payload)
-          })
-            .then(function (res) { return res.json(); })
-            .then(function (response) {
-              if (!response.success) {
-                return Promise.reject(new Error(response.errors ? response.errors.join(' ') : 'Request failed.'));
+          return new Promise(function (resolve, reject) {
+            var callbackName = 'gcashJsonp' + (++jsonpCallCounter) + '_' + Date.now();
+            var params = new URLSearchParams();
+            params.set('action', action);
+            params.set('passcode', passcode);
+            if (extra && extra.rowIndexes) {
+              params.set('rowIndexes', extra.rowIndexes.join(','));
+            }
+            params.set('callback', callbackName);
+
+            var script = document.createElement('script');
+            var timeoutId;
+
+            function cleanup() {
+              delete window[callbackName];
+              if (script.parentNode) {
+                script.parentNode.removeChild(script);
               }
-              return response.data;
-            });
+              clearTimeout(timeoutId);
+            }
+
+            window[callbackName] = function (response) {
+              cleanup();
+              if (!response.success) {
+                reject(new Error(response.errors ? response.errors.join(' ') : 'Request failed.'));
+                return;
+              }
+              resolve(response.data);
+            };
+
+            script.onerror = function () {
+              cleanup();
+              reject(new Error('Request failed.'));
+            };
+
+            timeoutId = setTimeout(function () {
+              cleanup();
+              reject(new Error('Request timed out.'));
+            }, JSONP_TIMEOUT_MS);
+
+            script.src = APPS_SCRIPT_URL + '?' + params.toString();
+            document.head.appendChild(script);
+          });
         }
 
         function showLogin() {

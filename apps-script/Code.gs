@@ -63,11 +63,55 @@ function getOrCreateFolder_() {
 }
 
 function doGet(e) {
-  var isAdmin = e && e.parameter && e.parameter.page === 'admin';
+  var params = (e && e.parameter) || {};
+
+  // JSONP path for admin.html's data calls (listSubmissions/getSubmissionsFields/
+  // getSubmissionsMedia/validatePasscode). A <script src="...&callback=..."> tag
+  // load follows Google's redirect chain (script.google.com -> .../exec's
+  // script.googleusercontent.com hop) at the browser's native script-loading
+  // layer, which is more robust in some network/browser environments than
+  // fetch() - fetch() was intermittently getting back an HTML error page
+  // instead of JSON in exactly this redirect hop. Still fully passcode-gated -
+  // same requireAdmin_ check as the POST path below, nothing is exposed
+  // without a valid passcode.
+  if (params.action && params.callback) {
+    return handleAdminJsonp_(params);
+  }
+
+  var isAdmin = params.page === 'admin';
   return HtmlService.createTemplateFromFile(isAdmin ? 'Admin' : 'Index')
     .evaluate()
     .setTitle(isAdmin ? 'GCash Payroll Enrollment - Admin' : 'GCash Payroll Enrollment Form')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+function handleAdminJsonp_(params) {
+  var result = safeAdminCall_(function () {
+    var rowIndexes = params.rowIndexes ? params.rowIndexes.split(',').map(Number) : null;
+
+    if (params.action === 'validatePasscode') {
+      requireAdmin_(params.passcode);
+      return true;
+    }
+    if (params.action === 'listSubmissions') {
+      return listSubmissions(params.passcode);
+    }
+    if (params.action === 'getSubmissionsFields') {
+      return getSubmissionsFields(params.passcode, rowIndexes);
+    }
+    if (params.action === 'getSubmissionsMedia') {
+      return getSubmissionsMedia(params.passcode, rowIndexes);
+    }
+    throw new Error('Unknown action.');
+  });
+
+  return jsonpResponse_(result, params.callback);
+}
+
+function jsonpResponse_(obj, callback) {
+  return ContentService
+    .createTextOutput(callback + '(' + JSON.stringify(obj) + ')')
+    .setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
 
 function include(filename) {
@@ -316,9 +360,10 @@ function invalidateListSubmissionsCache_() {
 }
 
 // Kept for apps-script/Admin.html (legacy surface), which calls this
-// directly via google.script.run rather than through doPost. The
+// directly via google.script.run rather than through doGet/doPost. The
 // standalone admin.html uses the faster split getSubmissionsFields/
-// getSubmissionsMedia actions below instead - see CLAUDE.md.
+// getSubmissionsMedia actions below instead (via doGet JSONP) - see
+// CLAUDE.md.
 function getSubmissionDetail(passcode, rowIndex) {
   requireAdmin_(passcode);
   var sheet = getSheet_();
