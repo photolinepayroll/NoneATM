@@ -1015,20 +1015,55 @@
         var directRowIndex = new URLSearchParams(location.search).get('rowIndex');
         var directRowIndexes = new URLSearchParams(location.search).get('rowIndexes');
 
+        var CALLBACKEND_TIMEOUT_MS = 12000;
+        var CALLBACKEND_MAX_RETRIES = 2;
+
+        // Apps Script exec URLs redirect through a second Google domain
+        // (script.google.com -> script.googleusercontent.com) to deliver the
+        // response; on some networks that hop can stall indefinitely instead
+        // of failing fast. Without a timeout, fetch() just waits - sometimes
+        // 30+ seconds, sometimes forever. Aborting a stuck attempt and
+        // retrying with a fresh connection resolves most of those stalls,
+        // since it's the in-flight connection that's stuck, not the backend
+        // itself (a cache-hit listSubmissions call involves almost no script
+        // work, so a 30-second wait on one is a transport problem, not Apps
+        // Script being slow).
         function callBackend(action, extra) {
           var payload = Object.assign({ action: action, passcode: passcode }, extra);
-          return fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(payload)
-          })
-            .then(function (res) { return res.json(); })
-            .then(function (response) {
-              if (!response.success) {
-                return Promise.reject(new Error(response.errors ? response.errors.join(' ') : 'Request failed.'));
-              }
-              return response.data;
-            });
+
+          function attempt(retriesLeft) {
+            var controller = new AbortController();
+            var timeoutId = setTimeout(function () { controller.abort(); }, CALLBACKEND_TIMEOUT_MS);
+
+            return fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify(payload),
+              signal: controller.signal
+            })
+              .then(function (res) { return res.json(); })
+              .then(function (response) {
+                clearTimeout(timeoutId);
+                if (!response.success) {
+                  var err = new Error(response.errors ? response.errors.join(' ') : 'Request failed.');
+                  err.isBackendError = true;
+                  throw err;
+                }
+                return response.data;
+              })
+              .catch(function (err) {
+                clearTimeout(timeoutId);
+                if (!err.isBackendError && retriesLeft > 0) {
+                  return attempt(retriesLeft - 1);
+                }
+                if (err.name === 'AbortError') {
+                  throw new Error('Request timed out. Please check your connection and try again.');
+                }
+                throw err;
+              });
+          }
+
+          return attempt(CALLBACKEND_MAX_RETRIES);
         }
 
         function showLogin() {
