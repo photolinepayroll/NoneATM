@@ -628,9 +628,7 @@
       .screenshot-image {
         width: 100%;
         max-width: 460px;
-        aspect-ratio: 16 / 10;
-        object-fit: cover;
-        object-position: top left;
+        max-height: 320px;
         margin: 0 auto;
         border: 1px solid #eef0f5;
         border-radius: 8px;
@@ -638,6 +636,12 @@
 
       .screenshot-image:not([hidden]) {
         display: block;
+      }
+
+      .screenshot-image--crop {
+        aspect-ratio: 16 / 10;
+        object-fit: cover;
+        object-position: top left;
       }
 
       #loginError {
@@ -736,6 +740,7 @@
         }
         .screenshot-image {
           max-width: 320px;
+          max-height: 200px;
         }
       }
     </style>
@@ -1313,6 +1318,16 @@
             });
         }
 
+        function setScreenshotImage(img, mimeType, base64) {
+          img.classList.remove('screenshot-image--crop');
+          img.onload = function () {
+            if (img.naturalWidth && img.naturalHeight && img.naturalWidth / img.naturalHeight < 1) {
+              img.classList.add('screenshot-image--crop');
+            }
+          };
+          img.src = 'data:' + mimeType + ';base64,' + base64;
+        }
+
         function renderDetail(detail) {
           document.getElementById('d-timestamp').textContent = detail.timestamp;
           document.getElementById('d-employeeName').textContent = detail.employeeName;
@@ -1329,7 +1344,7 @@
           var screenshotImg = document.getElementById('d-screenshot');
           screenshotImg.hidden = true;
           if (detail.screenshotBase64 && detail.screenshotMimeType !== 'application/pdf') {
-            screenshotImg.src = 'data:' + detail.screenshotMimeType + ';base64,' + detail.screenshotBase64;
+            setScreenshotImage(screenshotImg, detail.screenshotMimeType, detail.screenshotBase64);
             screenshotImg.hidden = false;
           }
         }
@@ -1361,7 +1376,7 @@
 
             var screenshotImg = card.querySelector('.f-screenshot');
             if (detail.screenshotBase64 && detail.screenshotMimeType !== 'application/pdf') {
-              screenshotImg.src = 'data:' + detail.screenshotMimeType + ';base64,' + detail.screenshotBase64;
+              setScreenshotImage(screenshotImg, detail.screenshotMimeType, detail.screenshotBase64);
               screenshotImg.hidden = false;
             }
 
