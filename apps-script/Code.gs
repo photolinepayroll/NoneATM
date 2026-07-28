@@ -80,6 +80,9 @@ function doPost(e) {
     return jsonResponse_({ success: false, errors: ['Invalid request body.'] });
   }
 
+  if (body.action === 'validatePasscode') {
+    return jsonResponse_(safeAdminCall_(function () { requireAdmin_(body.passcode); return true; }));
+  }
   if (body.action === 'listSubmissions') {
     return jsonResponse_(safeAdminCall_(function () { return listSubmissions(body.passcode); }));
   }
@@ -346,14 +349,17 @@ var FETCH_CHUNK_SIZE = 20;
 // slowest single file in a batch instead of the sum of all of them.
 //
 // Returns an array the same length/order as fileIds. A null/blank id
-// resolves to null (no file to fetch). A file that genuinely doesn't exist
-// on Drive (404) also resolves to null. Anything else going wrong - the
+// resolves to null (no file to fetch - normal for a row with nothing
+// uploaded). A confirmed-missing file (404 from Drive, or DriveApp also
+// throwing "not found") likewise resolves to null. Anything else - the
 // whole fetchAll() batch throwing (e.g. a not-yet-granted OAuth scope right
 // after this code first deploys), or an individual response coming back
 // non-200/non-404 (permission hiccup, rate limiting, a transient 5xx) -
-// falls back to the slower but dependable DriveApp.getFileById().getBlob()
-// for just that file, rather than either taking down the whole request or
-// silently reporting a real file as "not uploaded".
+// first retries via the slower but dependable
+// DriveApp.getFileById().getBlob(); if that *also* fails, this throws
+// rather than quietly returning null, so a real Drive/permission problem
+// surfaces as "could not load" instead of looking like the employee never
+// uploaded a screenshot/signature.
 function fetchFilesParallel_(fileIds) {
   var blobs = new Array(fileIds.length).fill(null);
   var idsToFetch = [];
@@ -366,13 +372,22 @@ function fetchFilesParallel_(fileIds) {
     return blobs;
   }
 
+  var failedCount = 0;
+
   var token;
   try {
     token = ScriptApp.getOAuthToken();
   } catch (err) {
     idsToFetch.forEach(function (i) {
-      blobs[i] = fetchFileViaDriveApp_(fileIds[i]);
+      var result = fetchFileViaDriveApp_(fileIds[i]);
+      blobs[i] = result.blob;
+      if (result.failed) {
+        failedCount++;
+      }
     });
+    if (failedCount > 0) {
+      throw new Error('Could not load ' + failedCount + ' file(s) from Drive.');
+    }
     return blobs;
   }
 
@@ -391,7 +406,11 @@ function fetchFilesParallel_(fileIds) {
       responses = UrlFetchApp.fetchAll(requests);
     } catch (err) {
       chunkIndexes.forEach(function (i) {
-        blobs[i] = fetchFileViaDriveApp_(fileIds[i]);
+        var result = fetchFileViaDriveApp_(fileIds[i]);
+        blobs[i] = result.blob;
+        if (result.failed) {
+          failedCount++;
+        }
       });
       continue;
     }
@@ -402,19 +421,32 @@ function fetchFilesParallel_(fileIds) {
       if (code === 200) {
         blobs[i] = response.getBlob();
       } else if (code !== 404) {
-        blobs[i] = fetchFileViaDriveApp_(fileIds[i]);
+        var result = fetchFileViaDriveApp_(fileIds[i]);
+        blobs[i] = result.blob;
+        if (result.failed) {
+          failedCount++;
+        }
       }
     });
+  }
+
+  if (failedCount > 0) {
+    throw new Error('Could not load ' + failedCount + ' screenshot/signature file(s) from Drive - please retry.');
   }
 
   return blobs;
 }
 
+// Returns { blob, failed }. failed is true only when the file couldn't be
+// fetched for a reason other than genuinely not existing (DriveApp throws
+// the same way for "not found" as for real permission/Drive errors, so a
+// message check is the only way to tell them apart).
 function fetchFileViaDriveApp_(fileId) {
   try {
-    return DriveApp.getFileById(fileId).getBlob();
+    return { blob: DriveApp.getFileById(fileId).getBlob(), failed: false };
   } catch (err) {
-    return null;
+    var notFound = /not found/i.test(err.message || '');
+    return { blob: null, failed: !notFound };
   }
 }
 

@@ -462,6 +462,15 @@
         function resizeCanvas() {
           var ratio = window.devicePixelRatio || 1;
           var rect = canvas.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) {
+            // Canvas is inside #enrollmentForm, which is hidden (display:
+            // none) while the review step is showing - getBoundingClientRect
+            // returns 0x0 in that state. Resizing to 0x0 would clear the
+            // drawn signature outright, so skip until the form is visible
+            // again instead of wiping it on every resize event (address bar
+            // collapse, keyboard open/close, rotation) that fires meanwhile.
+            return;
+          }
           var newWidth = rect.width * ratio;
           var newHeight = rect.height * ratio;
           if (newWidth === canvas.width && newHeight === canvas.height) {

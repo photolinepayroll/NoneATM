@@ -709,7 +709,8 @@
 
       @media print {
         .no-print,
-        .media-loading {
+        .media-loading,
+        .media-error {
           display: none !important;
         }
         body {
@@ -1457,7 +1458,11 @@
         document.getElementById('d-media-retry').addEventListener('click', function (e) {
           e.preventDefault();
           if (currentDetailRowIndex !== null) {
-            loadDetailMedia(currentDetailRowIndex, ++detailRequestToken);
+            // Reuses the current token rather than bumping it: this is a
+            // retry of the same row's media, not a new row being viewed, so
+            // it must not invalidate the still-in-flight getSubmissionsFields
+            // request from the original viewDetail() call for this row.
+            loadDetailMedia(currentDetailRowIndex, detailRequestToken);
           }
         });
 
@@ -1500,6 +1505,7 @@
           rowIndexes.forEach(function (rowIndex, i) {
             var detail = fieldsList[i];
             var card = template.content.firstElementChild.cloneNode(true);
+            card.dataset.rowIndex = rowIndex;
             card.querySelector('.logo').src = logoSrc;
             card.querySelector('.f-timestamp').textContent = detail.timestamp;
             card.querySelector('.f-employeeName').textContent = detail.employeeName;
@@ -1579,9 +1585,7 @@
           }
           e.preventDefault();
           var card = e.target.closest('.bulk-record-card');
-          var rowIndex = Number(Object.keys(bulkCardsByRowIndex).find(function (key) {
-            return bulkCardsByRowIndex[key] === card;
-          }));
+          var rowIndex = Number(card.dataset.rowIndex);
           if (!isNaN(rowIndex)) {
             loadBulkMedia([rowIndex]);
           }
@@ -1620,16 +1624,23 @@
           var directSavedPasscode = sessionStorage.getItem('gcashAdminPasscode');
           if (directSavedPasscode) {
             document.getElementById('loginSection').hidden = true;
-            attemptLogin(directSavedPasscode)
+            passcode = directSavedPasscode;
+            // Validates the saved passcode with a near-free backend call
+            // (just a Script Properties read, no Sheet/Drive access) rather
+            // than routing through attemptLogin()'s full listSubmissions -
+            // a direct View/Print-Selected link shouldn't have to fetch and
+            // render the entire dashboard just to confirm the passcode is
+            // still good.
+            callBackend('validatePasscode', {})
               .then(function () {
                 if (directRowIndexes !== null) {
-                  document.getElementById('dashboardSection').hidden = true;
                   openDirectBulkPrint(directRowIndexes);
                 } else {
                   viewDetail(Number(directRowIndex));
                 }
               })
               .catch(function () {
+                passcode = '';
                 sessionStorage.removeItem('gcashAdminPasscode');
                 showLogin();
               });
