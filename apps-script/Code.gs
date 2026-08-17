@@ -3,6 +3,11 @@ const FOLDER_NAME = 'GCash Payroll Enrollment Attachments';
 const SHEET_HEADERS = [
   'Timestamp',
   'Employee Name',
+  'First Name',
+  'Middle Name',
+  'Last Name',
+  'Birthday',
+  'City/Province',
   'Branch/Department',
   'Contact Number',
   'Verified GCash Mobile Number',
@@ -130,7 +135,8 @@ function submitForm(formData) {
   var sheet = getOrCreateSheet_();
 
   var now = new Date();
-  var namePart = String(formData.employeeName).replace(/[^a-zA-Z0-9]/g, '');
+  var fullName = String(formData.firstName) + ' ' + (formData.middleName ? String(formData.middleName) + ' ' : '') + String(formData.lastName);
+  var namePart = fullName.replace(/[^a-zA-Z0-9]/g, '');
   var stamp = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
 
   var createdFiles = [];
@@ -153,7 +159,12 @@ function submitForm(formData) {
 
     sheet.appendRow([
       now,
-      sanitizeForSheet_(formData.employeeName),
+      sanitizeForSheet_(fullName),
+      sanitizeForSheet_(formData.firstName),
+      sanitizeForSheet_(formData.middleName || ''),
+      sanitizeForSheet_(formData.lastName),
+      "'" + sanitizeForSheet_(formData.birthday),
+      sanitizeForSheet_(formData.cityProvince),
       sanitizeForSheet_(formData.branchDepartment),
       sanitizeMobileForSheet_(formData.contactNumber),
       sanitizeMobileForSheet_(formData.gcashMobileNumber),
@@ -174,11 +185,15 @@ function submitForm(formData) {
 
 function validateSubmission_(formData) {
   var errors = [];
-  ['employeeName', 'branchDepartment', 'contactNumber', 'gcashMobileNumber'].forEach(function (field) {
+  ['firstName', 'lastName', 'birthday', 'cityProvince', 'branchDepartment', 'contactNumber', 'gcashMobileNumber'].forEach(function (field) {
     if (!formData[field] || String(formData[field]).trim() === '') {
       errors.push(field + ' is required.');
     }
   });
+
+  if (formData.birthday && isNaN(new Date(formData.birthday).getTime())) {
+    errors.push('birthday must be a valid date.');
+  }
 
   var mobileNumberPattern = /^09\d{9}$/;
   if (formData.contactNumber && !mobileNumberPattern.test(String(formData.contactNumber).trim())) {
@@ -270,9 +285,14 @@ function listSubmissions(passcode) {
         timestamp: Utilities.formatDate(timestamp, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'),
         timestampIso: Utilities.formatDate(timestamp, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss"),
         employeeName: data[i][1],
-        branchDepartment: data[i][2],
-        contactNumber: normalizeMobileNumber_(data[i][3]),
-        gcashMobileNumber: normalizeMobileNumber_(data[i][4])
+        firstName: data[i][2],
+        middleName: data[i][3],
+        lastName: data[i][4],
+        birthday: data[i][5],
+        cityProvince: data[i][6],
+        branchDepartment: data[i][7],
+        contactNumber: normalizeMobileNumber_(data[i][8]),
+        gcashMobileNumber: normalizeMobileNumber_(data[i][9])
       });
     }
   }
@@ -327,17 +347,17 @@ function getSubmissionDetail(passcode, rowIndex) {
   var sheet = getSheet_();
   var row = sheet.getRange(rowIndex, 1, 1, SHEET_HEADERS.length).getValues()[0];
 
-  var blobs = fetchFilesParallel_([extractFileId_(row[6]), extractFileId_(row[7])]);
+  var blobs = fetchFilesParallel_([extractFileId_(row[11]), extractFileId_(row[12])]);
   var screenshotBlob = blobs[0];
   var signatureBlob = blobs[1];
 
   return {
     timestamp: Utilities.formatDate(new Date(row[0]), Session.getScriptTimeZone(), 'MMMM d, yyyy h:mm a'),
     employeeName: row[1],
-    branchDepartment: row[2],
-    contactNumber: normalizeMobileNumber_(row[3]),
-    gcashMobileNumber: normalizeMobileNumber_(row[4]),
-    declarationAccepted: row[5],
+    branchDepartment: row[7],
+    contactNumber: normalizeMobileNumber_(row[8]),
+    gcashMobileNumber: normalizeMobileNumber_(row[9]),
+    declarationAccepted: row[10],
     screenshotBase64: screenshotBlob ? Utilities.base64Encode(screenshotBlob.getBytes()) : null,
     screenshotMimeType: screenshotBlob ? screenshotBlob.getContentType() : null,
     signatureBase64: signatureBlob ? Utilities.base64Encode(signatureBlob.getBytes()) : null
@@ -352,10 +372,15 @@ function getSubmissionsFields(passcode, rowIndexes) {
     return {
       timestamp: Utilities.formatDate(new Date(row[0]), Session.getScriptTimeZone(), 'MMMM d, yyyy h:mm a'),
       employeeName: row[1],
-      branchDepartment: row[2],
-      contactNumber: normalizeMobileNumber_(row[3]),
-      gcashMobileNumber: normalizeMobileNumber_(row[4]),
-      declarationAccepted: row[5]
+      firstName: row[2],
+      middleName: row[3],
+      lastName: row[4],
+      birthday: row[5],
+      cityProvince: row[6],
+      branchDepartment: row[7],
+      contactNumber: normalizeMobileNumber_(row[8]),
+      gcashMobileNumber: normalizeMobileNumber_(row[9]),
+      declarationAccepted: row[10]
     };
   });
 }
@@ -372,7 +397,7 @@ function getSubmissionsMedia(passcode, rowIndexes) {
   // fetchFilesParallel_.
   var fileIds = [];
   rows.forEach(function (row) {
-    fileIds.push(extractFileId_(row[6]), extractFileId_(row[7]));
+    fileIds.push(extractFileId_(row[11]), extractFileId_(row[12]));
   });
   var blobs = fetchFilesParallel_(fileIds);
 

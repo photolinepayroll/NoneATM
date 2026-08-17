@@ -94,6 +94,7 @@
 
   input[type="text"],
   input[type="tel"],
+  input[type="date"],
   input[type="file"] {
     width: 100%;
     padding: 10px;
@@ -104,6 +105,7 @@
 
   input[type="text"]:focus,
   input[type="tel"]:focus,
+  input[type="date"]:focus,
   input[type="file"]:focus,
   .checkbox-label input:focus,
   #submitBtn:focus,
@@ -352,9 +354,25 @@
         <section class="section">
           <h2>Section 1 &ndash; Employee Information</h2>
 
-          <label for="employeeName">Employee Name <span class="required" aria-hidden="true">*</span></label>
-          <input type="text" id="employeeName" name="employeeName" required aria-describedby="err-employeeName">
-          <span class="error" id="err-employeeName"></span>
+          <label for="firstName">First Name <span class="required" aria-hidden="true">*</span></label>
+          <input type="text" id="firstName" name="firstName" required aria-describedby="err-firstName">
+          <span class="error" id="err-firstName"></span>
+
+          <label for="middleName">Middle Name</label>
+          <input type="text" id="middleName" name="middleName" aria-describedby="err-middleName">
+          <span class="error" id="err-middleName"></span>
+
+          <label for="lastName">Last Name <span class="required" aria-hidden="true">*</span></label>
+          <input type="text" id="lastName" name="lastName" required aria-describedby="err-lastName">
+          <span class="error" id="err-lastName"></span>
+
+          <label for="birthday">Birthday <span class="required" aria-hidden="true">*</span></label>
+          <input type="date" id="birthday" name="birthday" required aria-describedby="err-birthday">
+          <span class="error" id="err-birthday"></span>
+
+          <label for="cityProvince">City/Province <span class="required" aria-hidden="true">*</span></label>
+          <input type="text" id="cityProvince" name="cityProvince" required aria-describedby="err-cityProvince">
+          <span class="error" id="err-cityProvince"></span>
 
           <label for="branchDepartment">Branch/Department <span class="required" aria-hidden="true">*</span></label>
           <input type="text" id="branchDepartment" name="branchDepartment" required aria-describedby="err-branchDepartment">
@@ -422,7 +440,11 @@
         <h2>Review Your Submission</h2>
         <p class="hint">Please check your details carefully. Click "Edit" to go back and make changes, or "Confirm &amp; Submit" if everything is correct.</p>
 
-        <div class="review-field"><span class="review-label">Employee Name</span><span id="review-employeeName"></span></div>
+        <div class="review-field"><span class="review-label">First Name</span><span id="review-firstName"></span></div>
+        <div class="review-field"><span class="review-label">Middle Name</span><span id="review-middleName"></span></div>
+        <div class="review-field"><span class="review-label">Last Name</span><span id="review-lastName"></span></div>
+        <div class="review-field"><span class="review-label">Birthday</span><span id="review-birthday"></span></div>
+        <div class="review-field"><span class="review-label">City/Province</span><span id="review-cityProvince"></span></div>
         <div class="review-field"><span class="review-label">Branch/Department</span><span id="review-branchDepartment"></span></div>
         <div class="review-field"><span class="review-label">Contact Number</span><span id="review-contactNumber"></span></div>
         <div class="review-field"><span class="review-label">Verified GCash Mobile Number</span><span id="review-gcashMobileNumber"></span></div>
@@ -581,7 +603,11 @@
           evt.preventDefault();
           clearErrors();
 
-          var employeeName = document.getElementById('employeeName').value.trim();
+          var firstName = document.getElementById('firstName').value.trim();
+          var middleName = document.getElementById('middleName').value.trim();
+          var lastName = document.getElementById('lastName').value.trim();
+          var birthday = document.getElementById('birthday').value.trim();
+          var cityProvince = document.getElementById('cityProvince').value.trim();
           var branchDepartment = document.getElementById('branchDepartment').value.trim();
           var contactNumber = document.getElementById('contactNumber').value.trim();
           var gcashMobileNumber = document.getElementById('gcashMobileNumber').value.trim();
@@ -590,7 +616,10 @@
           var screenshotFile = screenshotInput.files[0];
 
           var valid = true;
-          if (!employeeName) { setError('employeeName', 'Required.'); valid = false; }
+          if (!firstName) { setError('firstName', 'Required.'); valid = false; }
+          if (!lastName) { setError('lastName', 'Required.'); valid = false; }
+          if (!birthday) { setError('birthday', 'Required.'); valid = false; }
+          if (!cityProvince) { setError('cityProvince', 'Required.'); valid = false; }
           if (!branchDepartment) { setError('branchDepartment', 'Required.'); valid = false; }
           var mobileNumberPattern = /^09\d{9}$/;
           if (!contactNumber) {
@@ -609,7 +638,11 @@
 
           if (!valid) return;
 
-          document.getElementById('review-employeeName').textContent = employeeName;
+          document.getElementById('review-firstName').textContent = firstName;
+          document.getElementById('review-middleName').textContent = middleName;
+          document.getElementById('review-lastName').textContent = lastName;
+          document.getElementById('review-birthday').textContent = birthday;
+          document.getElementById('review-cityProvince').textContent = cityProvince;
           document.getElementById('review-branchDepartment').textContent = branchDepartment;
           document.getElementById('review-contactNumber').textContent = contactNumber;
           document.getElementById('review-gcashMobileNumber').textContent = gcashMobileNumber;
@@ -629,7 +662,11 @@
           document.getElementById('review-signature').src = canvas.toDataURL('image/png');
 
           pendingSubmission = {
-            employeeName: employeeName,
+            firstName: firstName,
+            middleName: middleName,
+            lastName: lastName,
+            birthday: birthday,
+            cityProvince: cityProvince,
             branchDepartment: branchDepartment,
             contactNumber: contactNumber,
             gcashMobileNumber: gcashMobileNumber,
@@ -660,7 +697,11 @@
 
           readFileAsBase64(pendingSubmission.screenshotFile).then(function (screenshotBase64) {
             var payload = {
-              employeeName: pendingSubmission.employeeName,
+              firstName: pendingSubmission.firstName,
+              middleName: pendingSubmission.middleName,
+              lastName: pendingSubmission.lastName,
+              birthday: pendingSubmission.birthday,
+              cityProvince: pendingSubmission.cityProvince,
               branchDepartment: pendingSubmission.branchDepartment,
               contactNumber: pendingSubmission.contactNumber,
               gcashMobileNumber: pendingSubmission.gcashMobileNumber,

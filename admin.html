@@ -927,6 +927,8 @@
 
           <div class="record-field"><span class="label">Date Submitted</span><span id="d-timestamp"></span></div>
           <div class="record-field"><span class="label">Employee Name</span><span id="d-employeeName"></span></div>
+          <div class="record-field"><span class="label">Birthday</span><span id="d-birthday"></span></div>
+          <div class="record-field"><span class="label">City/Province</span><span id="d-cityProvince"></span></div>
           <div class="record-field"><span class="label">Branch/Department</span><span id="d-branchDepartment"></span></div>
           <div class="record-field"><span class="label">Contact Number</span><span id="d-contactNumber"></span></div>
           <div class="record-field"><span class="label">Verified GCash Mobile Number</span><span id="d-gcashMobileNumber"></span></div>
@@ -976,6 +978,8 @@
 
         <div class="record-field"><span class="label">Date Submitted</span><span class="f-timestamp"></span></div>
         <div class="record-field"><span class="label">Employee Name</span><span class="f-employeeName"></span></div>
+        <div class="record-field"><span class="label">Birthday</span><span class="f-birthday"></span></div>
+        <div class="record-field"><span class="label">City/Province</span><span class="f-cityProvince"></span></div>
         <div class="record-field"><span class="label">Branch/Department</span><span class="f-branchDepartment"></span></div>
         <div class="record-field"><span class="label">Contact Number</span><span class="f-contactNumber"></span></div>
         <div class="record-field"><span class="label">Verified GCash Mobile Number</span><span class="f-gcashMobileNumber"></span></div>
@@ -1259,13 +1263,18 @@
         }
 
         document.getElementById('exportCsvBtn').addEventListener('click', function () {
-          var headers = ['Date', 'Employee Name', 'Branch/Department', 'Contact Number', 'GCash Mobile Number'];
+          var headers = ['Date', 'Employee Name', 'First Name', 'Middle Name', 'Last Name', 'Birthday', 'City/Province', 'Branch/Department', 'Contact Number', 'GCash Mobile Number'];
           var lines = [headers.map(csvCell).join(',')];
 
           currentFilteredRows.forEach(function (row) {
             lines.push([
               csvCell(row.timestamp),
               csvCell(row.employeeName),
+              csvCell(row.firstName),
+              csvCell(row.middleName),
+              csvCell(row.lastName),
+              csvCell(row.birthday),
+              csvCell(row.cityProvince),
               csvCell(row.branchDepartment),
               csvMobileNumberCell(row.contactNumber),
               csvMobileNumberCell(row.gcashMobileNumber)
@@ -1504,6 +1513,8 @@
         function renderDetailFields(detail) {
           document.getElementById('d-timestamp').textContent = detail.timestamp;
           document.getElementById('d-employeeName').textContent = detail.employeeName;
+          document.getElementById('d-birthday').textContent = detail.birthday;
+          document.getElementById('d-cityProvince').textContent = detail.cityProvince;
           document.getElementById('d-branchDepartment').textContent = detail.branchDepartment;
           document.getElementById('d-contactNumber').textContent = detail.contactNumber;
           document.getElementById('d-gcashMobileNumber').textContent = detail.gcashMobileNumber;
@@ -1544,6 +1555,8 @@
             card.querySelector('.logo').src = logoSrc;
             card.querySelector('.f-timestamp').textContent = detail.timestamp;
             card.querySelector('.f-employeeName').textContent = detail.employeeName;
+            card.querySelector('.f-birthday').textContent = detail.birthday;
+            card.querySelector('.f-cityProvince').textContent = detail.cityProvince;
             card.querySelector('.f-branchDepartment').textContent = detail.branchDepartment;
             card.querySelector('.f-contactNumber').textContent = detail.contactNumber;
             card.querySelector('.f-gcashMobileNumber').textContent = detail.gcashMobileNumber;
