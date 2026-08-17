@@ -285,9 +285,14 @@ function listSubmissions(passcode) {
         timestamp: Utilities.formatDate(timestamp, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'),
         timestampIso: Utilities.formatDate(timestamp, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss"),
         employeeName: data[i][1],
-        branchDepartment: data[i][2],
-        contactNumber: normalizeMobileNumber_(data[i][3]),
-        gcashMobileNumber: normalizeMobileNumber_(data[i][4])
+        firstName: data[i][2],
+        middleName: data[i][3],
+        lastName: data[i][4],
+        birthday: data[i][5],
+        cityProvince: data[i][6],
+        branchDepartment: data[i][7],
+        contactNumber: normalizeMobileNumber_(data[i][8]),
+        gcashMobileNumber: normalizeMobileNumber_(data[i][9])
       });
     }
   }
@@ -342,17 +347,17 @@ function getSubmissionDetail(passcode, rowIndex) {
   var sheet = getSheet_();
   var row = sheet.getRange(rowIndex, 1, 1, SHEET_HEADERS.length).getValues()[0];
 
-  var blobs = fetchFilesParallel_([extractFileId_(row[6]), extractFileId_(row[7])]);
+  var blobs = fetchFilesParallel_([extractFileId_(row[11]), extractFileId_(row[12])]);
   var screenshotBlob = blobs[0];
   var signatureBlob = blobs[1];
 
   return {
     timestamp: Utilities.formatDate(new Date(row[0]), Session.getScriptTimeZone(), 'MMMM d, yyyy h:mm a'),
     employeeName: row[1],
-    branchDepartment: row[2],
-    contactNumber: normalizeMobileNumber_(row[3]),
-    gcashMobileNumber: normalizeMobileNumber_(row[4]),
-    declarationAccepted: row[5],
+    branchDepartment: row[7],
+    contactNumber: normalizeMobileNumber_(row[8]),
+    gcashMobileNumber: normalizeMobileNumber_(row[9]),
+    declarationAccepted: row[10],
     screenshotBase64: screenshotBlob ? Utilities.base64Encode(screenshotBlob.getBytes()) : null,
     screenshotMimeType: screenshotBlob ? screenshotBlob.getContentType() : null,
     signatureBase64: signatureBlob ? Utilities.base64Encode(signatureBlob.getBytes()) : null
@@ -367,10 +372,15 @@ function getSubmissionsFields(passcode, rowIndexes) {
     return {
       timestamp: Utilities.formatDate(new Date(row[0]), Session.getScriptTimeZone(), 'MMMM d, yyyy h:mm a'),
       employeeName: row[1],
-      branchDepartment: row[2],
-      contactNumber: normalizeMobileNumber_(row[3]),
-      gcashMobileNumber: normalizeMobileNumber_(row[4]),
-      declarationAccepted: row[5]
+      firstName: row[2],
+      middleName: row[3],
+      lastName: row[4],
+      birthday: row[5],
+      cityProvince: row[6],
+      branchDepartment: row[7],
+      contactNumber: normalizeMobileNumber_(row[8]),
+      gcashMobileNumber: normalizeMobileNumber_(row[9]),
+      declarationAccepted: row[10]
     };
   });
 }
@@ -387,7 +397,7 @@ function getSubmissionsMedia(passcode, rowIndexes) {
   // fetchFilesParallel_.
   var fileIds = [];
   rows.forEach(function (row) {
-    fileIds.push(extractFileId_(row[6]), extractFileId_(row[7]));
+    fileIds.push(extractFileId_(row[11]), extractFileId_(row[12]));
   });
   var blobs = fetchFilesParallel_(fileIds);
 
