@@ -135,7 +135,8 @@ function submitForm(formData) {
   var sheet = getOrCreateSheet_();
 
   var now = new Date();
-  var namePart = String(formData.employeeName).replace(/[^a-zA-Z0-9]/g, '');
+  var fullName = String(formData.firstName) + ' ' + (formData.middleName ? String(formData.middleName) + ' ' : '') + String(formData.lastName);
+  var namePart = fullName.replace(/[^a-zA-Z0-9]/g, '');
   var stamp = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
 
   var createdFiles = [];
@@ -158,7 +159,12 @@ function submitForm(formData) {
 
     sheet.appendRow([
       now,
-      sanitizeForSheet_(formData.employeeName),
+      sanitizeForSheet_(fullName),
+      sanitizeForSheet_(formData.firstName),
+      sanitizeForSheet_(formData.middleName || ''),
+      sanitizeForSheet_(formData.lastName),
+      sanitizeForSheet_(formData.birthday),
+      sanitizeForSheet_(formData.cityProvince),
       sanitizeForSheet_(formData.branchDepartment),
       sanitizeMobileForSheet_(formData.contactNumber),
       sanitizeMobileForSheet_(formData.gcashMobileNumber),
