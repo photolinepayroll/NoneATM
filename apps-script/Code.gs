@@ -163,7 +163,7 @@ function submitForm(formData) {
       sanitizeForSheet_(formData.firstName),
       sanitizeForSheet_(formData.middleName || ''),
       sanitizeForSheet_(formData.lastName),
-      sanitizeForSheet_(formData.birthday),
+      "'" + sanitizeForSheet_(formData.birthday),
       sanitizeForSheet_(formData.cityProvince),
       sanitizeForSheet_(formData.branchDepartment),
       sanitizeMobileForSheet_(formData.contactNumber),
