@@ -3,6 +3,11 @@ const FOLDER_NAME = 'GCash Payroll Enrollment Attachments';
 const SHEET_HEADERS = [
   'Timestamp',
   'Employee Name',
+  'First Name',
+  'Middle Name',
+  'Last Name',
+  'Birthday',
+  'City/Province',
   'Branch/Department',
   'Contact Number',
   'Verified GCash Mobile Number',
@@ -174,11 +179,15 @@ function submitForm(formData) {
 
 function validateSubmission_(formData) {
   var errors = [];
-  ['employeeName', 'branchDepartment', 'contactNumber', 'gcashMobileNumber'].forEach(function (field) {
+  ['firstName', 'lastName', 'birthday', 'cityProvince', 'branchDepartment', 'contactNumber', 'gcashMobileNumber'].forEach(function (field) {
     if (!formData[field] || String(formData[field]).trim() === '') {
       errors.push(field + ' is required.');
     }
   });
+
+  if (formData.birthday && isNaN(new Date(formData.birthday).getTime())) {
+    errors.push('birthday must be a valid date.');
+  }
 
   var mobileNumberPattern = /^09\d{9}$/;
   if (formData.contactNumber && !mobileNumberPattern.test(String(formData.contactNumber).trim())) {
