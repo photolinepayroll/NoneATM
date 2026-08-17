@@ -603,7 +603,11 @@
           evt.preventDefault();
           clearErrors();
 
-          var employeeName = document.getElementById('employeeName').value.trim();
+          var firstName = document.getElementById('firstName').value.trim();
+          var middleName = document.getElementById('middleName').value.trim();
+          var lastName = document.getElementById('lastName').value.trim();
+          var birthday = document.getElementById('birthday').value.trim();
+          var cityProvince = document.getElementById('cityProvince').value.trim();
           var branchDepartment = document.getElementById('branchDepartment').value.trim();
           var contactNumber = document.getElementById('contactNumber').value.trim();
           var gcashMobileNumber = document.getElementById('gcashMobileNumber').value.trim();
@@ -612,7 +616,10 @@
           var screenshotFile = screenshotInput.files[0];
 
           var valid = true;
-          if (!employeeName) { setError('employeeName', 'Required.'); valid = false; }
+          if (!firstName) { setError('firstName', 'Required.'); valid = false; }
+          if (!lastName) { setError('lastName', 'Required.'); valid = false; }
+          if (!birthday) { setError('birthday', 'Required.'); valid = false; }
+          if (!cityProvince) { setError('cityProvince', 'Required.'); valid = false; }
           if (!branchDepartment) { setError('branchDepartment', 'Required.'); valid = false; }
           var mobileNumberPattern = /^09\d{9}$/;
           if (!contactNumber) {
@@ -631,7 +638,11 @@
 
           if (!valid) return;
 
-          document.getElementById('review-employeeName').textContent = employeeName;
+          document.getElementById('review-firstName').textContent = firstName;
+          document.getElementById('review-middleName').textContent = middleName;
+          document.getElementById('review-lastName').textContent = lastName;
+          document.getElementById('review-birthday').textContent = birthday;
+          document.getElementById('review-cityProvince').textContent = cityProvince;
           document.getElementById('review-branchDepartment').textContent = branchDepartment;
           document.getElementById('review-contactNumber').textContent = contactNumber;
           document.getElementById('review-gcashMobileNumber').textContent = gcashMobileNumber;
@@ -651,7 +662,11 @@
           document.getElementById('review-signature').src = canvas.toDataURL('image/png');
 
           pendingSubmission = {
-            employeeName: employeeName,
+            firstName: firstName,
+            middleName: middleName,
+            lastName: lastName,
+            birthday: birthday,
+            cityProvince: cityProvince,
             branchDepartment: branchDepartment,
             contactNumber: contactNumber,
             gcashMobileNumber: gcashMobileNumber,
@@ -682,7 +697,11 @@
 
           readFileAsBase64(pendingSubmission.screenshotFile).then(function (screenshotBase64) {
             var payload = {
-              employeeName: pendingSubmission.employeeName,
+              firstName: pendingSubmission.firstName,
+              middleName: pendingSubmission.middleName,
+              lastName: pendingSubmission.lastName,
+              birthday: pendingSubmission.birthday,
+              cityProvince: pendingSubmission.cityProvince,
               branchDepartment: pendingSubmission.branchDepartment,
               contactNumber: pendingSubmission.contactNumber,
               gcashMobileNumber: pendingSubmission.gcashMobileNumber,
