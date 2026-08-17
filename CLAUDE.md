@@ -48,6 +48,18 @@ If asked to speed up the dashboard again: don't re-litigate the OAuth-scope/back
 
 Both `index.html` (client-side) and `Code.gs`'s `validateSubmission_` (server-side) enforce the `^09\d{9}$` pattern (11 digits, starts with `09`) on new submissions.
 
+**Same class of bug hit `birthday`** when it was added (2026-08-17/18 session): Sheets also auto-detects date-looking strings and converts them to a Date-typed cell, which would have round-tripped through `JSON.stringify()` as a full ISO datetime instead of the plain `yyyy-mm-dd` the date picker sends. Fixed the same way as mobile numbers — `submitForm` writes it as `"'" + sanitizeForSheet_(formData.birthday)` to force text storage (`Code.gs`, inside the `appendRow` call). If any other date-shaped field is ever added, apply the same leading-`'` treatment at write time rather than rediscovering this.
+
+## Sheet schema (`SHEET_HEADERS`, 13 columns)
+
+`Timestamp, Employee Name, First Name, Middle Name, Last Name, Birthday, City/Province, Branch/Department, Contact Number, Verified GCash Mobile Number, Declaration Accepted, GCash Screenshot Link, Signature Link`.
+
+The public form (`index.html`) collects First/Middle/Last Name (Middle optional) instead of a single Employee Name field, plus Birthday (date picker) and City/Province — both required. `Code.gs` keeps the "Employee Name" column and auto-populates it by joining the three name parts (`firstName + ' ' + middleName + ' ' + lastName`, skipping a blank middle name) on every submission, so anything that already reads that column (admin search, CSV export, the printed record's signature line, the Drive attachment filenames) keeps working unchanged. `admin.html`'s detail view, printed record, and CSV export show Birthday/City-Province as additional fields; the summary table intentionally does not gain new columns for them (deliberate scope decision, not an oversight).
+
+Every function in `Code.gs` that reads a row by raw numeric index (`listSubmissions`, `getSubmissionsFields`, `getSubmissionsMedia`, the legacy `getSubmissionDetail`) has to agree with `SHEET_HEADERS`'s column order — there's no named-index abstraction, just literal `row[N]` throughout, so a future schema change means touching every one of those functions and rechecking the map by hand (this was the highest-risk part of implementing the split; see the code-quality review this session flagged the lack of a `COLUMN` constant as a standing risk for the *next* change, not a defect in this one).
+
+**Migrating an already-populated Sheet to a new column layout is not just a code change.** When the 5 new columns were inserted after "Employee Name" (rather than appended at the very end), the live Sheet needed a one-time manual "Insert N columns left" to physically shift existing data before the new code's column indices would line up with it — done immediately before pushing, since there's an unavoidable ~1 minute window (the Apps Script deploy time) where old data position and new code expectations could briefly mismatch. If the column layout changes again, budget for this same manual step, timed with the push, not after it.
+
 ## Print/PDF layout gotchas (admin.html record view)
 
 The printed enrollment record (`#detailSection` → `.admin-card` in `admin.html`) went through many iterations to fit on one Letter page. Lessons learned, so they aren't relearned the hard way:
