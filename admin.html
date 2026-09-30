@@ -1136,8 +1136,13 @@
                 viewDetail(Number(directRowIndex));
               }
             })
-            .catch(function () {
-              document.getElementById('loginError').textContent = 'Incorrect password.';
+            .catch(function (err) {
+              // Only a real "Invalid admin passcode" means a wrong password;
+              // anything else (timeout, bad response, render error) used to be
+              // misreported as "Incorrect password."
+              var msg = err && err.message ? err.message : '';
+              document.getElementById('loginError').textContent =
+                /Invalid admin passcode/i.test(msg) ? 'Incorrect password.' : 'Login failed: ' + (msg || 'unknown error');
             })
             .then(function () {
               btn.disabled = false;
