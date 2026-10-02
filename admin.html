@@ -1104,18 +1104,43 @@
           document.getElementById('pagination').hidden = true;
         }
 
-        function refreshSubmissions() {
-          renderSkeletonRows();
+        var LIST_CACHE_STORAGE_KEY = 'gcashAdminList';
+
+        // The last successfully fetched list, kept only for this browser tab
+        // (sessionStorage) so a reload can paint instantly while the fresh
+        // list loads. Only ever shown for a passcode already validated in this
+        // same session - never before a typed login has been checked.
+        function saveListToSession(rows) {
+          try {
+            sessionStorage.setItem(LIST_CACHE_STORAGE_KEY, JSON.stringify(rows));
+          } catch (e) { /* storage full/blocked - just skip the speedup */ }
+        }
+
+        function loadListFromSession() {
+          try {
+            var raw = sessionStorage.getItem(LIST_CACHE_STORAGE_KEY);
+            var rows = raw ? JSON.parse(raw) : null;
+            return Array.isArray(rows) ? rows : null;
+          } catch (e) {
+            return null;
+          }
+        }
+
+        function refreshSubmissions(quiet) {
+          if (!quiet) {
+            renderSkeletonRows();
+          }
           return callBackend('listSubmissions', {}).then(function (rows) {
             allRows = rows;
+            saveListToSession(rows);
             populateBranchFilter(rows);
             renderDashboard(rows);
           });
         }
 
-        function attemptLogin(code) {
+        function attemptLogin(code, quiet) {
           passcode = code;
-          return refreshSubmissions().then(function () {
+          return refreshSubmissions(quiet).then(function () {
             sessionStorage.setItem('gcashAdminPasscode', passcode);
             showDashboard();
           });
@@ -1168,6 +1193,8 @@
 
         document.getElementById('logoutBtn').addEventListener('click', function () {
           sessionStorage.removeItem('gcashAdminPasscode');
+          sessionStorage.removeItem(LIST_CACHE_STORAGE_KEY);
+          mediaCache = {};
           passcode = '';
           document.getElementById('passcode').value = '';
           showLogin();
@@ -1457,11 +1484,22 @@
         // regardless of click order.
         var detailRequestToken = 0;
 
+        // Media already fetched this session, keyed by sheet row, so
+        // re-opening a record (or going back and forth while checking
+        // several) doesn't re-download the screenshot each time.
+        var mediaCache = {};
+
         function loadDetailMedia(rowIndex, requestToken) {
           document.getElementById('d-media-error').hidden = true;
+          if (mediaCache[rowIndex]) {
+            document.getElementById('d-media-loading').hidden = true;
+            renderDetailMedia(mediaCache[rowIndex]);
+            return;
+          }
           document.getElementById('d-media-loading').hidden = false;
           callBackend('getSubmissionsMedia', { rowIndexes: [rowIndex] })
             .then(function (list) {
+              mediaCache[rowIndex] = list[0];
               if (requestToken !== detailRequestToken) {
                 return;
               }
@@ -1485,23 +1523,64 @@
           document.getElementById('d-signature').hidden = true;
           document.getElementById('d-media-error').hidden = true;
 
-          callBackend('getSubmissionsFields', { rowIndexes: [rowIndex] })
-            .then(function (list) {
-              if (requestToken !== detailRequestToken) {
-                return;
-              }
-              renderDetailFields(list[0]);
-              document.getElementById('dashboardSection').hidden = true;
-              document.getElementById('detailSection').hidden = false;
-            })
-            .catch(function (err) {
-              if (requestToken !== detailRequestToken) {
-                return;
-              }
-              alert('Could not load this record: ' + err.message);
-            });
+          // The list already carries every text field the detail view shows,
+          // so when the row is in hand, render it immediately with no
+          // round trip and only wait on the (heavier) media. Direct-link tabs
+          // and rows missing from the list fall back to the backend call.
+          var listRow = findListRow(rowIndex);
+          if (listRow) {
+            renderDetailFields(listRowToDetail(listRow));
+            document.getElementById('dashboardSection').hidden = true;
+            document.getElementById('detailSection').hidden = false;
+          } else {
+            callBackend('getSubmissionsFields', { rowIndexes: [rowIndex] })
+              .then(function (list) {
+                if (requestToken !== detailRequestToken) {
+                  return;
+                }
+                renderDetailFields(list[0]);
+                document.getElementById('dashboardSection').hidden = true;
+                document.getElementById('detailSection').hidden = false;
+              })
+              .catch(function (err) {
+                if (requestToken !== detailRequestToken) {
+                  return;
+                }
+                alert('Could not load this record: ' + err.message);
+              });
+          }
 
           loadDetailMedia(rowIndex, requestToken);
+        }
+
+        function findListRow(rowIndex) {
+          var rows = allRows && allRows.length ? allRows : loadListFromSession();
+          if (!rows) {
+            return null;
+          }
+          for (var i = 0; i < rows.length; i++) {
+            if (rows[i].rowIndex === rowIndex) {
+              return rows[i];
+            }
+          }
+          return null;
+        }
+
+        // Same shape as the backend's getSubmissionsFields (long-form
+        // timestamp, e.g. "October 2, 2026 2:37 PM") built from list data.
+        function listRowToDetail(row) {
+          var d = new Date(row.timestampIso);
+          var timestamp = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) +
+            ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+          return {
+            timestamp: timestamp,
+            employeeName: row.employeeName,
+            birthday: row.birthday,
+            cityProvince: row.cityProvince,
+            branchDepartment: row.branchDepartment,
+            contactNumber: row.contactNumber,
+            gcashMobileNumber: row.gcashMobileNumber
+          };
         }
 
         document.getElementById('d-media-retry').addEventListener('click', function (e) {
@@ -1703,8 +1782,24 @@
         } else {
           var savedPasscode = sessionStorage.getItem('gcashAdminPasscode');
           if (savedPasscode) {
-            attemptLogin(savedPasscode).catch(function () {
+            // Paint the last-known list right away (this passcode was already
+            // accepted earlier in this tab's session), then refresh silently.
+            var cachedRows = loadListFromSession();
+            var paintedFromCache = false;
+            if (cachedRows) {
+              try {
+                allRows = cachedRows;
+                populateBranchFilter(cachedRows);
+                renderDashboard(cachedRows);
+                showDashboard();
+                paintedFromCache = true;
+              } catch (e) {
+                paintedFromCache = false;
+              }
+            }
+            attemptLogin(savedPasscode, paintedFromCache).catch(function () {
               sessionStorage.removeItem('gcashAdminPasscode');
+              sessionStorage.removeItem(LIST_CACHE_STORAGE_KEY);
               showLogin();
             });
           }

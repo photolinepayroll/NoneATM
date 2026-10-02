@@ -17,8 +17,17 @@ const SHEET_HEADERS = [
 ];
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
-const LIST_SUBMISSIONS_CACHE_KEY = 'listSubmissions_v1';
-const LIST_SUBMISSIONS_CACHE_TTL_SECONDS = 30;
+const LIST_SUBMISSIONS_CACHE_KEY = 'listSubmissions_v2';
+// Safe to be long: submitForm calls invalidateListSubmissionsCache_() on every
+// new submission. (Edits made directly in the Sheet won't show until this
+// expires or an admin submits/refreshes after it does - acceptable here.)
+const LIST_SUBMISSIONS_CACHE_TTL_SECONDS = 600;
+// CacheService caps each value at 100KB, so a big list is split across keys.
+// Measured in characters; kept well under the byte cap for non-ASCII names.
+const LIST_SUBMISSIONS_CACHE_CHUNK_CHARS = 30000;
+// Columns listSubmissions actually uses (Timestamp .. GCash Mobile Number);
+// the declaration/screenshot/signature columns aren't needed for the list.
+const LIST_SUBMISSIONS_COLUMN_COUNT = 10;
 
 function setup() {
   var sheet = getOrCreateSheet_();
@@ -277,7 +286,7 @@ function listSubmissions(passcode) {
   var lastRow = sheet.getLastRow();
   var result = [];
   if (lastRow >= 2) {
-    var data = sheet.getRange(2, 1, lastRow - 1, SHEET_HEADERS.length).getValues();
+    var data = sheet.getRange(2, 1, lastRow - 1, LIST_SUBMISSIONS_COLUMN_COUNT).getValues();
     for (var i = 0; i < data.length; i++) {
       var timestamp = new Date(data[i][0]);
       result.push({
@@ -304,25 +313,52 @@ function listSubmissions(passcode) {
 // Returns the cached listSubmissions result (parsed), or null on a cache
 // miss or any unexpected problem reading/parsing the cache - a cache
 // problem must never break the dashboard, only skip the speedup.
+//
+// Layout: LIST_SUBMISSIONS_CACHE_KEY holds a small {id, n} pointer; the JSON
+// itself lives in n chunk keys named <KEY>_<id>_<i>. The pointer is written
+// last (and removed first on invalidation), so a reader never sees a
+// half-written or stale-generation list.
 function getCachedListSubmissions_(cache) {
   try {
-    var raw = cache.get(LIST_SUBMISSIONS_CACHE_KEY);
-    return raw ? JSON.parse(raw) : null;
+    var metaRaw = cache.get(LIST_SUBMISSIONS_CACHE_KEY);
+    if (!metaRaw) {
+      return null;
+    }
+    var meta = JSON.parse(metaRaw);
+    var keys = [];
+    for (var i = 0; i < meta.n; i++) {
+      keys.push(LIST_SUBMISSIONS_CACHE_KEY + '_' + meta.id + '_' + i);
+    }
+    var chunks = cache.getAll(keys);
+    var json = '';
+    for (var j = 0; j < keys.length; j++) {
+      if (chunks[keys[j]] == null) {
+        return null;
+      }
+      json += chunks[keys[j]];
+    }
+    return JSON.parse(json);
   } catch (err) {
     return null;
   }
 }
 
-// Best-effort cache write. CacheService rejects values over 100KB per key;
-// once the Sheet has enough rows for the JSON to cross that, this silently
-// stops caching rather than throwing - every call just falls back to a live
-// Sheet read, same as before this change existed.
+// Best-effort cache write; any CacheService problem just means the next call
+// reads the Sheet live, same as an uncached call.
 function setCachedListSubmissions_(cache, result) {
   try {
-    cache.put(LIST_SUBMISSIONS_CACHE_KEY, JSON.stringify(result), LIST_SUBMISSIONS_CACHE_TTL_SECONDS);
+    var json = JSON.stringify(result);
+    var id = String(new Date().getTime());
+    var entries = {};
+    var n = 0;
+    for (var start = 0; start < json.length; start += LIST_SUBMISSIONS_CACHE_CHUNK_CHARS) {
+      entries[LIST_SUBMISSIONS_CACHE_KEY + '_' + id + '_' + n] = json.substring(start, start + LIST_SUBMISSIONS_CACHE_CHUNK_CHARS);
+      n++;
+    }
+    cache.putAll(entries, LIST_SUBMISSIONS_CACHE_TTL_SECONDS);
+    cache.put(LIST_SUBMISSIONS_CACHE_KEY, JSON.stringify({ id: id, n: n }), LIST_SUBMISSIONS_CACHE_TTL_SECONDS);
   } catch (err) {
-    // Too large for a single cache entry, or some other transient
-    // CacheService issue - not caching this round is fine.
+    // Too large overall or a transient CacheService issue - skip caching.
   }
 }
 
@@ -396,10 +432,12 @@ function getSubmissionsMedia(passcode, rowIndexes) {
   // instead of one DriveApp.getFileById().getBlob() call at a time - see
   // fetchFilesParallel_.
   var fileIds = [];
+  var useThumbnail = [];
   rows.forEach(function (row) {
     fileIds.push(extractFileId_(row[11]), extractFileId_(row[12]));
+    useThumbnail.push(true, false); // screenshot resized, signature untouched
   });
-  var blobs = fetchFilesParallel_(fileIds);
+  var blobs = fetchFilesParallel_(fileIds, useThumbnail);
 
   return rows.map(function (row, i) {
     var screenshotBlob = blobs[i * 2];
@@ -417,6 +455,11 @@ function getSubmissionsMedia(passcode, rowIndexes) {
 // requests into a single call; chunking keeps each batch reasonably sized
 // while still fetching well ahead of one-file-at-a-time.
 var FETCH_CHUNK_SIZE = 20;
+
+// Drive's on-the-fly resize endpoint. w1400 stays sharp for the single-record
+// view and the Ctrl+P printed record, at a fraction of an original phone
+// screenshot's size.
+var SCREENSHOT_THUMBNAIL_URL_TEMPLATE = 'https://drive.google.com/thumbnail?id={id}&sz=w1400';
 
 // DriveApp.getFileById(id).getBlob() is a blocking round-trip per file, so
 // fetching a screenshot and signature (or several records' worth, in bulk
@@ -437,7 +480,15 @@ var FETCH_CHUNK_SIZE = 20;
 // rather than quietly returning null, so a real Drive/permission problem
 // surfaces as "could not load" instead of looking like the employee never
 // uploaded a screenshot/signature.
-function fetchFilesParallel_(fileIds) {
+//
+// useThumbnail (optional, same length/order as fileIds): where true, ask Drive
+// for a server-side resized copy (SCREENSHOT_THUMBNAIL_URL_TEMPLATE) instead
+// of the original bytes. Phone screenshots are routinely multiple MB, and the
+// admin screen only needs ~1400px wide, so this is the biggest single cut to
+// the payload shipped back to the browser. Any non-200 thumbnail response
+// (no thumbnail available yet, unsupported type, ...) falls back to the full
+// original via DriveApp rather than failing the record.
+function fetchFilesParallel_(fileIds, useThumbnail) {
   var blobs = new Array(fileIds.length).fill(null);
   var idsToFetch = [];
   fileIds.forEach(function (id, i) {
@@ -471,8 +522,11 @@ function fetchFilesParallel_(fileIds) {
   for (var start = 0; start < idsToFetch.length; start += FETCH_CHUNK_SIZE) {
     var chunkIndexes = idsToFetch.slice(start, start + FETCH_CHUNK_SIZE);
     var requests = chunkIndexes.map(function (i) {
+      var wantThumb = !!(useThumbnail && useThumbnail[i]);
       return {
-        url: 'https://www.googleapis.com/drive/v3/files/' + fileIds[i] + '?alt=media',
+        url: wantThumb
+          ? SCREENSHOT_THUMBNAIL_URL_TEMPLATE.replace('{id}', fileIds[i])
+          : 'https://www.googleapis.com/drive/v3/files/' + fileIds[i] + '?alt=media',
         headers: { Authorization: 'Bearer ' + token },
         muteHttpExceptions: true
       };
@@ -497,7 +551,7 @@ function fetchFilesParallel_(fileIds) {
       var code = response.getResponseCode();
       if (code === 200) {
         blobs[i] = response.getBlob();
-      } else if (code !== 404) {
+      } else if (code !== 404 || (useThumbnail && useThumbnail[i])) {
         var result = fetchFileViaDriveApp_(fileIds[i]);
         blobs[i] = result.blob;
         if (result.failed) {
