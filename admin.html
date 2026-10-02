@@ -1489,31 +1489,50 @@
         // several) doesn't re-download the screenshot each time.
         var mediaCache = {};
 
+        // Screenshot and signature are requested as two parallel calls: the
+        // signature is tiny and shows up as soon as it arrives instead of
+        // waiting behind the screenshot's download.
+        function fetchMediaPart(rowIndex, part) {
+          var key = rowIndex + ':' + part;
+          if (!mediaCache[key]) {
+            mediaCache[key] = callBackend('getSubmissionsMedia', { rowIndexes: [rowIndex], part: part })
+              .then(function (list) { return list[0]; });
+            mediaCache[key].catch(function () { delete mediaCache[key]; });
+          }
+          return mediaCache[key];
+        }
+
         function loadDetailMedia(rowIndex, requestToken) {
           document.getElementById('d-media-error').hidden = true;
-          if (mediaCache[rowIndex]) {
-            document.getElementById('d-media-loading').hidden = true;
-            renderDetailMedia(mediaCache[rowIndex]);
-            return;
-          }
           document.getElementById('d-media-loading').hidden = false;
-          callBackend('getSubmissionsMedia', { rowIndexes: [rowIndex] })
-            .then(function (list) {
-              mediaCache[rowIndex] = list[0];
-              if (requestToken !== detailRequestToken) {
-                return;
-              }
+          var pending = 2;
+          var failed = false;
+
+          function done() {
+            pending--;
+            if (pending === 0 && requestToken === detailRequestToken) {
               document.getElementById('d-media-loading').hidden = true;
-              renderDetailMedia(list[0]);
-            })
-            .catch(function (err) {
-              if (requestToken !== detailRequestToken) {
-                return;
-              }
-              console.error('Could not load screenshot/signature: ' + err.message);
-              document.getElementById('d-media-loading').hidden = true;
-              document.getElementById('d-media-error').hidden = false;
-            });
+              document.getElementById('d-media-error').hidden = !failed;
+            }
+          }
+
+          ['signature', 'screenshot'].forEach(function (part) {
+            fetchMediaPart(rowIndex, part)
+              .then(function (media) {
+                if (requestToken === detailRequestToken) {
+                  renderDetailMedia(media);
+                }
+              })
+              .catch(function (err) {
+                console.error('Could not load ' + part + ': ' + err.message);
+                failed = true;
+                if (/Invalid admin passcode/i.test(err.message) && requestToken === detailRequestToken) {
+                  sessionStorage.removeItem('gcashAdminPasscode');
+                  showLogin();
+                }
+              })
+              .then(done);
+          });
         }
 
         function viewDetail(rowIndex) {
@@ -1763,19 +1782,21 @@
             // a direct View/Print-Selected link shouldn't have to fetch and
             // render the entire dashboard just to confirm the passcode is
             // still good.
-            callBackend('validatePasscode', {})
-              .then(function () {
-                if (directRowIndexes !== null) {
-                  openDirectBulkPrint(directRowIndexes);
-                } else {
-                  viewDetail(Number(directRowIndex));
-                }
-              })
-              .catch(function () {
-                passcode = '';
-                sessionStorage.removeItem('gcashAdminPasscode');
-                showLogin();
-              });
+            if (directRowIndexes !== null) {
+              callBackend('validatePasscode', {})
+                .then(function () { openDirectBulkPrint(directRowIndexes); })
+                .catch(function () {
+                  passcode = '';
+                  sessionStorage.removeItem('gcashAdminPasscode');
+                  showLogin();
+                });
+            } else {
+              // No separate validatePasscode round trip first: the media
+              // calls are admin-gated themselves and bounce back to the
+              // login screen on a bad passcode, so waiting on validation
+              // just added a full serial Apps Script round trip.
+              viewDetail(Number(directRowIndex));
+            }
           } else {
             showLogin();
           }

@@ -106,7 +106,7 @@ function doPost(e) {
     return jsonResponse_(safeAdminCall_(function () { return getSubmissionsFields(body.passcode, body.rowIndexes); }));
   }
   if (body.action === 'getSubmissionsMedia') {
-    return jsonResponse_(safeAdminCall_(function () { return getSubmissionsMedia(body.passcode, body.rowIndexes); }));
+    return jsonResponse_(safeAdminCall_(function () { return getSubmissionsMedia(body.passcode, body.rowIndexes, body.part); }));
   }
   if (body.action) {
     return jsonResponse_({ success: false, errors: ['Unknown action "' + body.action + '". The deployed backend may be out of sync with this page — try a hard refresh.'] });
@@ -421,7 +421,11 @@ function getSubmissionsFields(passcode, rowIndexes) {
   });
 }
 
-function getSubmissionsMedia(passcode, rowIndexes) {
+// part (optional): 'screenshot' or 'signature' fetches only that file, so the
+// single-record view can request the two as separate parallel calls and show
+// the small signature without waiting on the (much larger) screenshot. Omitted
+// = both, as bulk print uses.
+function getSubmissionsMedia(passcode, rowIndexes, part) {
   requireAdmin_(passcode);
   var sheet = getSheet_();
   var rows = rowIndexes.map(function (rowIndex) {
@@ -434,7 +438,7 @@ function getSubmissionsMedia(passcode, rowIndexes) {
   var fileIds = [];
   var useThumbnail = [];
   rows.forEach(function (row) {
-    fileIds.push(extractFileId_(row[11]), extractFileId_(row[12]));
+    fileIds.push(part === 'signature' ? null : extractFileId_(row[11]), part === 'screenshot' ? null : extractFileId_(row[12]));
     useThumbnail.push(true, false); // screenshot resized, signature untouched
   });
   var blobs = fetchFilesParallel_(fileIds, useThumbnail);
