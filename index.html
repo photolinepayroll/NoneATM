@@ -573,8 +573,19 @@
         });
 
         var BANK_OPTIONS = {
-          'Bank': ['BDO', 'BPI', 'Metrobank', 'UnionBank', 'Landbank', 'PNB', 'Security Bank', 'RCBC', 'China Bank', 'EastWest Bank', 'PSBank', 'Other'],
-          'E-Wallet': ['GCash', 'Maya', 'ShopeePay', 'GrabPay', 'Coins.ph', 'Other']
+          // Curated list (last refreshed 2026-10-14), not an official BSP roster.
+          // Short familiar labels first; digital banks grouped after the traditional ones.
+          // 'Other' reveals a free-text box, so a missing bank never blocks a submission.
+          'Bank': [
+            'BDO', 'BPI', 'Metrobank', 'Landbank', 'PNB', 'Security Bank', 'UnionBank', 'RCBC', 'China Bank',
+            'EastWest Bank', 'Bank of Commerce', 'DBP', 'PSBank', 'Maybank Philippines', 'Asia United Bank (AUB)',
+            'PBCom', 'Philtrust Bank', 'Robinsons Bank', 'CTBC Bank', 'Philippine Veterans Bank', 'BPI Direct BanKo',
+            'GoTyme Bank', 'Tonik Digital Bank', 'Maya Bank', 'UNO Digital Bank', 'UnionDigital Bank', 'OFBank',
+            'SeaBank', 'CIMB Bank (GSave)', 'Netbank', 'Other'
+          ],
+          'E-Wallet': [
+            'GCash', 'Maya', 'ShopeePay', 'GrabPay', 'Coins.ph', 'Lazada Wallet', 'Palawan Pay', 'DiskarTech (RCBC)', 'PayPal', 'Other'
+          ]
         };
         var accountTypeSelect = document.getElementById('accountType');
         var bankNameSelect = document.getElementById('bankName');
