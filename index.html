@@ -489,9 +489,8 @@
           <span class="error" id="err-screenshot"></span>
           <div id="cropTools" class="crop-tools" hidden>
             <img id="cropPreview" class="crop-preview" alt="Preview of your uploaded proof">
-            <p class="hint">Tip: crop the image so your <strong>Full Name</strong> and <strong>Account Number</strong> are large and easy to read.</p>
-            <button type="button" id="cropOpenBtn" class="crop-btn crop-btn--primary">Crop image</button>
-            <button type="button" id="cropResetBtn" class="crop-btn" hidden>Use original</button>
+            <p class="hint">Make sure your <strong>Full Name</strong> and <strong>Account Number</strong> are large and easy to read, or crop again.</p>
+            <button type="button" id="cropOpenBtn" class="crop-btn crop-btn--primary">Crop again</button>
           </div>
         </section>
 
@@ -560,7 +559,7 @@
     </div>
 
     <div id="cropModal" class="crop-modal" role="dialog" aria-modal="true" aria-label="Crop account proof" hidden>
-      <p class="crop-modal-hint">Drag on the image to select the area to keep (your Full Name and Account Number).</p>
+      <p class="crop-modal-hint">Drag the box to keep only your Full Name and Account Number, then tap Apply crop.</p>
       <div class="crop-stage"><canvas id="cropCanvas"></canvas></div>
       <div class="crop-modal-actions">
         <button type="button" id="cropApplyBtn" class="crop-btn crop-btn--primary">Apply crop</button>
@@ -749,7 +748,6 @@
           if (cropSourceUrl) { URL.revokeObjectURL(cropSourceUrl); cropSourceUrl = null; }
           if (cropPreviewUrl) { URL.revokeObjectURL(cropPreviewUrl); cropPreviewUrl = null; }
           croppedScreenshotFile = null;
-          document.getElementById('cropResetBtn').hidden = true;
           if (!file || file.type === 'application/pdf') { tools.hidden = true; return; }
           cropPreviewUrl = URL.createObjectURL(file);
           document.getElementById('cropPreview').src = cropPreviewUrl;
@@ -826,9 +824,9 @@
         cropCanvas.addEventListener('pointerup', endCropDrag);
         cropCanvas.addEventListener('pointercancel', endCropDrag);
 
-        document.getElementById('cropOpenBtn').addEventListener('click', function () {
+        function openCropper() {
           var file = document.getElementById('screenshot').files[0];
-          if (!file) return;
+          if (!file || file.type === 'application/pdf') return;
           if (cropSourceUrl) URL.revokeObjectURL(cropSourceUrl);
           cropSourceUrl = URL.createObjectURL(file);
           var img = new Image();
@@ -840,14 +838,23 @@
             cropScale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
             cropCanvas.width = Math.round(img.naturalWidth * cropScale);
             cropCanvas.height = Math.round(img.naturalHeight * cropScale);
-            cropSel = null;
+            cropSel = { x: 0, y: 0, w: cropCanvas.width, h: cropCanvas.height };
             drawCrop();
           };
           img.onerror = function () { setError('screenshot', 'Could not open this image for cropping. You can still submit it as-is.'); };
           img.src = cropSourceUrl;
-        });
+        }
 
-        document.getElementById('cropCancelBtn').addEventListener('click', function () { cropModal.hidden = true; });
+        document.getElementById('cropOpenBtn').addEventListener('click', openCropper);
+
+        // Cancelling means nothing gets attached: the proof must go through the crop step.
+        document.getElementById('cropCancelBtn').addEventListener('click', function () {
+          cropModal.hidden = true;
+          if (!croppedScreenshotFile) {
+            document.getElementById('screenshot').value = '';
+            refreshCropTools();
+          }
+        });
 
         document.getElementById('cropApplyBtn').addEventListener('click', function () {
           if (!cropSel || cropSel.w < CROP_MIN || cropSel.h < CROP_MIN) {
@@ -870,13 +877,8 @@
             if (cropPreviewUrl) URL.revokeObjectURL(cropPreviewUrl);
             cropPreviewUrl = URL.createObjectURL(croppedScreenshotFile);
             document.getElementById('cropPreview').src = cropPreviewUrl;
-            document.getElementById('cropResetBtn').hidden = false;
             cropModal.hidden = true;
           }, type, 0.92);
-        });
-
-        document.getElementById('cropResetBtn').addEventListener('click', function () {
-          refreshCropTools();
         });
 
         document.getElementById('screenshot').addEventListener('change', function (evt) {
@@ -893,8 +895,11 @@
           if (file.size > MAX_FILE_SIZE_BYTES) {
             setError('screenshot', 'File must be 10MB or smaller.');
             evt.target.value = '';
+            refreshCropTools();
+            return;
           }
           refreshCropTools();
+          openCropper();
         });
 
         document.getElementById('enrollmentForm').addEventListener('submit', function (evt) {
