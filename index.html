@@ -388,15 +388,23 @@
     min-height: 0;
     width: 100%;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    overflow: auto;
   }
   #cropCanvas {
     touch-action: none;
-    max-width: 100%;
-    max-height: 100%;
+    flex: none;
+    margin: auto;
     cursor: crosshair;
   }
+  .crop-zoom {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 10px;
+  }
+  .crop-zoom .crop-btn { margin: 0; min-width: 44px; font-size: 1.1rem; line-height: 1; }
+  .crop-zoom input[type="range"] { width: min(300px, 45vw); }
+  .crop-zoom span { color: #fff; font-size: 0.85rem; min-width: 3.2em; text-align: center; }
   .crop-modal-actions { padding-top: 10px; }
 </style>  </head>
   <body>
@@ -559,8 +567,14 @@
     </div>
 
     <div id="cropModal" class="crop-modal" role="dialog" aria-modal="true" aria-label="Crop account proof" hidden>
-      <p class="crop-modal-hint">Drag the box to keep only your Full Name and Account Number, then tap Apply crop.</p>
+      <p class="crop-modal-hint">Drag the box to keep only your Full Name and Account Number, then tap Apply crop. Zoom in with the slider or by pinching (two fingers also move the picture).</p>
       <div class="crop-stage"><canvas id="cropCanvas"></canvas></div>
+      <div class="crop-zoom">
+        <button type="button" id="cropZoomOut" class="crop-btn" aria-label="Zoom out">&minus;</button>
+        <input type="range" id="cropZoom" min="1" max="5" step="0.01" value="1" aria-label="Zoom">
+        <button type="button" id="cropZoomIn" class="crop-btn" aria-label="Zoom in">+</button>
+        <span id="cropZoomLabel">100%</span>
+      </div>
       <div class="crop-modal-actions">
         <button type="button" id="cropApplyBtn" class="crop-btn crop-btn--primary">Apply crop</button>
         <button type="button" id="cropCancelBtn" class="crop-btn">Cancel</button>
@@ -786,20 +800,85 @@
           return null;
         }
 
+        // ---- Zoom: slider, +/- buttons, ctrl+wheel and two-finger pinch ----
+        var cropFit = 1, cropMaxScale = 1;
+        var cropPointers = {};
+        var cropPinch = null;
+        var cropStage = document.querySelector('.crop-stage');
+        var cropZoomRange = document.getElementById('cropZoom');
+
+        function setCropScale(ns, cx, cy) {
+          ns = Math.max(cropFit, Math.min(cropMaxScale, ns));
+          var rect = cropCanvas.getBoundingClientRect();
+          var sr = cropStage.getBoundingClientRect();
+          if (cx === undefined) { cx = sr.left + sr.width / 2; cy = sr.top + sr.height / 2; }
+          var ax = rect.width ? (cx - rect.left) / rect.width : 0.5;
+          var ay = rect.height ? (cy - rect.top) / rect.height : 0.5;
+          if (ns !== cropScale) {
+            var ratio = ns / cropScale;
+            cropScale = ns;
+            cropCanvas.width = Math.round(cropImg.naturalWidth * ns);
+            cropCanvas.height = Math.round(cropImg.naturalHeight * ns);
+            if (cropSel) {
+              var x1 = Math.max(0, cropSel.x * ratio), y1 = Math.max(0, cropSel.y * ratio);
+              var x2 = Math.min(cropCanvas.width, (cropSel.x + cropSel.w) * ratio);
+              var y2 = Math.min(cropCanvas.height, (cropSel.y + cropSel.h) * ratio);
+              cropSel = { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+            }
+            drawCrop();
+            var nr = cropCanvas.getBoundingClientRect();
+            cropStage.scrollLeft += (nr.left + ax * nr.width) - cx;
+            cropStage.scrollTop += (nr.top + ay * nr.height) - cy;
+          }
+          cropZoomRange.value = cropScale / cropFit;
+          document.getElementById('cropZoomLabel').textContent = Math.round(cropScale / cropFit * 100) + '%';
+        }
+
+        cropZoomRange.addEventListener('input', function () { cropDrag = null; setCropScale(cropFit * parseFloat(cropZoomRange.value)); });
+        document.getElementById('cropZoomIn').addEventListener('click', function () { setCropScale(cropScale * 1.25); });
+        document.getElementById('cropZoomOut').addEventListener('click', function () { setCropScale(cropScale / 1.25); });
+        cropStage.addEventListener('wheel', function (evt) {
+          if (!evt.ctrlKey) return;
+          evt.preventDefault();
+          setCropScale(cropScale * Math.exp(-evt.deltaY * 0.01), evt.clientX, evt.clientY);
+        }, { passive: false });
+
+        function pointerMid() {
+          var ids = Object.keys(cropPointers), a = cropPointers[ids[0]], b = cropPointers[ids[1]];
+          return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y) || 1 };
+        }
+
         cropCanvas.addEventListener('pointerdown', function (evt) {
           evt.preventDefault();
           cropCanvas.setPointerCapture(evt.pointerId);
+          cropPointers[evt.pointerId] = { x: evt.clientX, y: evt.clientY };
+          if (Object.keys(cropPointers).length >= 2) {
+            // second finger: abandon the half-made selection and switch to pinch-zoom
+            if (cropDrag) { cropSel = cropDrag.hit === 'new' ? cropDrag.prev : cropDrag.orig; cropDrag = null; drawCrop(); }
+            var m = pointerMid();
+            cropPinch = { startScale: cropScale, startDist: m.d, last: m };
+            return;
+          }
           var pt = cropPoint(evt);
           var hit = cropHit(pt);
           if (hit) {
             cropDrag = { hit: hit, start: pt, orig: { x: cropSel.x, y: cropSel.y, w: cropSel.w, h: cropSel.h } };
           } else {
-            cropDrag = { hit: 'new', start: pt };
+            cropDrag = { hit: 'new', start: pt, prev: cropSel };
             cropSel = { x: pt.x, y: pt.y, w: 0, h: 0 };
           }
         });
 
         cropCanvas.addEventListener('pointermove', function (evt) {
+          if (cropPointers[evt.pointerId]) cropPointers[evt.pointerId] = { x: evt.clientX, y: evt.clientY };
+          if (cropPinch && Object.keys(cropPointers).length >= 2) {
+            var m = pointerMid();
+            setCropScale(cropPinch.startScale * m.d / cropPinch.startDist, cropPinch.last.x, cropPinch.last.y);
+            cropStage.scrollLeft -= m.x - cropPinch.last.x;
+            cropStage.scrollTop -= m.y - cropPinch.last.y;
+            cropPinch.last = m;
+            return;
+          }
           if (!cropDrag) return;
           var pt = cropPoint(evt), W = cropCanvas.width, H = cropCanvas.height;
           var d = cropDrag;
@@ -820,7 +899,16 @@
           drawCrop();
         });
 
-        function endCropDrag() { cropDrag = null; }
+        function endCropDrag(evt) {
+          delete cropPointers[evt.pointerId];
+          if (Object.keys(cropPointers).length < 2) cropPinch = null;
+          // a tap (or too-small drag) must not wipe out the existing selection
+          if (cropDrag && cropDrag.hit === 'new' && cropDrag.prev && (!cropSel || cropSel.w < CROP_MIN || cropSel.h < CROP_MIN)) {
+            cropSel = cropDrag.prev;
+            drawCrop();
+          }
+          cropDrag = null;
+        }
         cropCanvas.addEventListener('pointerup', endCropDrag);
         cropCanvas.addEventListener('pointercancel', endCropDrag);
 
@@ -835,7 +923,15 @@
             cropModal.hidden = false;
             var maxW = Math.min(window.innerWidth - 24, 1000);
             var maxH = window.innerHeight - 130;
-            cropScale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+            cropScale = cropFit = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+            // cap the zoomed canvas to ~16M pixels so phones don't run out of canvas memory
+            cropMaxScale = Math.max(cropFit, Math.min(cropFit * 6, Math.sqrt(16e6 / (img.naturalWidth * img.naturalHeight))));
+            cropZoomRange.max = Math.max(1.01, cropMaxScale / cropFit);
+            cropZoomRange.disabled = cropMaxScale / cropFit < 1.01;
+            cropZoomRange.value = 1;
+            document.getElementById('cropZoomLabel').textContent = '100%';
+            cropPointers = {}; cropPinch = null;
+            cropStage.scrollLeft = 0; cropStage.scrollTop = 0;
             cropCanvas.width = Math.round(img.naturalWidth * cropScale);
             cropCanvas.height = Math.round(img.naturalHeight * cropScale);
             cropSel = { x: 0, y: 0, w: cropCanvas.width, h: cropCanvas.height };
