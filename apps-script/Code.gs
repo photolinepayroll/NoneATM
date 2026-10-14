@@ -10,14 +10,18 @@ const SHEET_HEADERS = [
   'City/Province',
   'Branch/Department',
   'Contact Number',
-  'Verified GCash Mobile Number',
+  'Account Number',
   'Declaration Accepted',
-  'GCash Screenshot Link',
-  'Signature Link'
+  'Account Proof Link',
+  'Signature Link',
+  'Account Type',
+  'Bank / E-Wallet Name',
+  'Account Name'
 ];
+const ACCOUNT_TYPES = ['Bank', 'E-Wallet'];
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
-const LIST_SUBMISSIONS_CACHE_KEY = 'listSubmissions_v2';
+const LIST_SUBMISSIONS_CACHE_KEY = 'listSubmissions_v3';
 // Safe to be long: submitForm calls invalidateListSubmissionsCache_() on every
 // new submission. (Edits made directly in the Sheet won't show until this
 // expires or an admin submits/refreshes after it does - acceptable here.)
@@ -25,9 +29,9 @@ const LIST_SUBMISSIONS_CACHE_TTL_SECONDS = 600;
 // CacheService caps each value at 100KB, so a big list is split across keys.
 // Measured in characters; kept well under the byte cap for non-ASCII names.
 const LIST_SUBMISSIONS_CACHE_CHUNK_CHARS = 30000;
-// Columns listSubmissions actually uses (Timestamp .. GCash Mobile Number);
-// the declaration/screenshot/signature columns aren't needed for the list.
-const LIST_SUBMISSIONS_COLUMN_COUNT = 10;
+// Columns listSubmissions reads (Timestamp .. Account Name, incl. the
+// declaration/proof/signature columns it ignores) - must cover Account Name.
+const LIST_SUBMISSIONS_COLUMN_COUNT = 16;
 
 function setup() {
   var sheet = getOrCreateSheet_();
@@ -80,7 +84,7 @@ function doGet(e) {
   var isAdmin = e && e.parameter && e.parameter.page === 'admin';
   return HtmlService.createTemplateFromFile(isAdmin ? 'Admin' : 'Index')
     .evaluate()
-    .setTitle(isAdmin ? 'GCash Payroll Enrollment - Admin' : 'GCash Payroll Enrollment Form')
+    .setTitle(isAdmin ? 'Payroll Enrollment - Admin' : 'Payroll Enrollment Form')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
@@ -153,7 +157,7 @@ function submitForm(formData) {
     var screenshotBlob = base64ToBlob_(
       formData.screenshotBase64,
       formData.screenshotMimeType,
-      stamp + '_' + namePart + '_GCashScreenshot' + extensionFor_(formData.screenshotMimeType)
+      stamp + '_' + namePart + '_AccountProof' + extensionFor_(formData.screenshotMimeType)
     );
     var screenshotFile = folder.createFile(screenshotBlob);
     createdFiles.push(screenshotFile);
@@ -176,10 +180,13 @@ function submitForm(formData) {
       sanitizeForSheet_(formData.cityProvince),
       sanitizeForSheet_(formData.branchDepartment),
       sanitizeMobileForSheet_(formData.contactNumber),
-      sanitizeMobileForSheet_(formData.gcashMobileNumber),
+      sanitizeMobileForSheet_(formData.accountNumber),
       'Yes',
       screenshotFile.getUrl(),
-      signatureFile.getUrl()
+      signatureFile.getUrl(),
+      sanitizeForSheet_(formData.accountType),
+      sanitizeForSheet_(formData.bankName),
+      sanitizeForSheet_(formData.accountName)
     ]);
     invalidateListSubmissionsCache_();
   } catch (e) {
@@ -194,7 +201,7 @@ function submitForm(formData) {
 
 function validateSubmission_(formData) {
   var errors = [];
-  ['firstName', 'lastName', 'birthday', 'cityProvince', 'branchDepartment', 'contactNumber', 'gcashMobileNumber'].forEach(function (field) {
+  ['firstName', 'lastName', 'birthday', 'cityProvince', 'branchDepartment', 'contactNumber', 'accountType', 'bankName', 'accountNumber', 'accountName'].forEach(function (field) {
     if (!formData[field] || String(formData[field]).trim() === '') {
       errors.push(field + ' is required.');
     }
@@ -208,8 +215,18 @@ function validateSubmission_(formData) {
   if (formData.contactNumber && !mobileNumberPattern.test(String(formData.contactNumber).trim())) {
     errors.push('contactNumber must be an 11-digit mobile number starting with 09.');
   }
-  if (formData.gcashMobileNumber && !mobileNumberPattern.test(String(formData.gcashMobileNumber).trim())) {
-    errors.push('gcashMobileNumber must be an 11-digit mobile number starting with 09.');
+  if (formData.accountType && ACCOUNT_TYPES.indexOf(formData.accountType) === -1) {
+    errors.push('accountType must be Bank or E-Wallet.');
+  }
+  if (formData.accountNumber) {
+    var acctNo = String(formData.accountNumber).trim();
+    if (formData.accountType === 'E-Wallet') {
+      if (!mobileNumberPattern.test(acctNo)) {
+        errors.push('accountNumber must be an 11-digit mobile number starting with 09 for an E-Wallet.');
+      }
+    } else if (!/^\d{6,20}$/.test(acctNo)) {
+      errors.push('accountNumber must be 6 to 20 digits.');
+    }
   }
 
   if (!formData.declarationAccepted) {
@@ -266,6 +283,19 @@ function normalizeMobileNumber_(value) {
   return digits;
 }
 
+// Account fields for a sheet row. Rows submitted before bank/e-wallet support
+// have blank Account Type / Bank columns - those were all GCash.
+function accountFields_(row) {
+  var accountType = row[13] ? String(row[13]) : 'E-Wallet';
+  var bankName = row[14] ? String(row[14]) : 'GCash';
+  return {
+    accountType: accountType,
+    bankName: bankName,
+    accountNumber: accountType === 'Bank' ? String(row[9] == null ? '' : row[9]).trim() : normalizeMobileNumber_(row[9]),
+    accountName: row[15] ? String(row[15]) : ''
+  };
+}
+
 function requireAdmin_(passcode) {
   var expected = PropertiesService.getScriptProperties().getProperty('ADMIN_PASSCODE');
   if (!expected || passcode !== expected) {
@@ -289,6 +319,7 @@ function listSubmissions(passcode) {
     var data = sheet.getRange(2, 1, lastRow - 1, LIST_SUBMISSIONS_COLUMN_COUNT).getValues();
     for (var i = 0; i < data.length; i++) {
       var timestamp = new Date(data[i][0]);
+      var acct = accountFields_(data[i]);
       result.push({
         rowIndex: i + 2,
         timestamp: Utilities.formatDate(timestamp, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'),
@@ -301,7 +332,10 @@ function listSubmissions(passcode) {
         cityProvince: data[i][6],
         branchDepartment: data[i][7],
         contactNumber: normalizeMobileNumber_(data[i][8]),
-        gcashMobileNumber: normalizeMobileNumber_(data[i][9])
+        accountType: acct.accountType,
+        bankName: acct.bankName,
+        accountNumber: acct.accountNumber,
+        accountName: acct.accountName
       });
     }
   }
@@ -405,6 +439,7 @@ function getSubmissionsFields(passcode, rowIndexes) {
   var sheet = getSheet_();
   return rowIndexes.map(function (rowIndex) {
     var row = sheet.getRange(rowIndex, 1, 1, SHEET_HEADERS.length).getValues()[0];
+    var acct = accountFields_(row);
     return {
       timestamp: Utilities.formatDate(new Date(row[0]), Session.getScriptTimeZone(), 'MMMM d, yyyy h:mm a'),
       employeeName: row[1],
@@ -415,7 +450,10 @@ function getSubmissionsFields(passcode, rowIndexes) {
       cityProvince: row[6],
       branchDepartment: row[7],
       contactNumber: normalizeMobileNumber_(row[8]),
-      gcashMobileNumber: normalizeMobileNumber_(row[9]),
+      accountType: acct.accountType,
+      bankName: acct.bankName,
+      accountNumber: acct.accountNumber,
+      accountName: acct.accountName,
       declarationAccepted: row[10]
     };
   });

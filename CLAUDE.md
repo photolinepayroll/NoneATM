@@ -4,7 +4,7 @@ Guidance for Claude Code (or any future contributor) working in this repository.
 
 ## What this project is
 
-A GCash Payroll Enrollment system for **Photoline Enterprises Corporation**, for employees without an ATM savings account. Employees submit their own Verified GCash account (with a screenshot proof + e-signature) via a public form; HR reviews submissions through a passcode-gated admin dashboard. See `PROMPT.tx.txt` for the original field-by-field spec.
+A Payroll Enrollment system (originally GCash-only, now any bank account or e-wallet) for **Photoline Enterprises Corporation**, for employees without an ATM savings account. Employees submit their own bank/e-wallet account (Account Type, Bank/E-Wallet name, Account Number, Account Name, with a proof upload + e-signature) via a public form; HR reviews submissions through a passcode-gated admin dashboard. See `PROMPT.tx.txt` for the original field-by-field spec.
 
 ## Architecture — two parallel frontends, one backend
 
@@ -54,9 +54,11 @@ Both `index.html` (client-side) and `Code.gs`'s `validateSubmission_` (server-si
 
 **Same class of bug hit `birthday`** when it was added (2026-08-17/18 session): Sheets also auto-detects date-looking strings and converts them to a Date-typed cell, which would have round-tripped through `JSON.stringify()` as a full ISO datetime instead of the plain `yyyy-mm-dd` the date picker sends. Fixed the same way as mobile numbers — `submitForm` writes it as `"'" + sanitizeForSheet_(formData.birthday)` to force text storage (`Code.gs`, inside the `appendRow` call). If any other date-shaped field is ever added, apply the same leading-`'` treatment at write time rather than rediscovering this.
 
-## Sheet schema (`SHEET_HEADERS`, 13 columns)
+## Sheet schema (`SHEET_HEADERS`, 16 columns)
 
-`Timestamp, Employee Name, First Name, Middle Name, Last Name, Birthday, City/Province, Branch/Department, Contact Number, Verified GCash Mobile Number, Declaration Accepted, GCash Screenshot Link, Signature Link`.
+`Timestamp, Employee Name, First Name, Middle Name, Last Name, Birthday, City/Province, Branch/Department, Contact Number, Account Number, Declaration Accepted, Account Proof Link, Signature Link, Account Type, Bank / E-Wallet Name, Account Name`.
+
+**Bank/e-wallet change (2026-10-14):** column J was "Verified GCash Mobile Number" and is now `Account Number`; the three new columns (N-P) were *appended* so no manual Sheet column insert was needed - `getOrCreateSheet_()` rewrites the header row on the next submit/`setup()`. Rows submitted before the change have blank N-P, and `accountFields_()` in `Code.gs` reads those as Account Type `E-Wallet` / Bank `GCash`. Account numbers are always written with a leading `'` (text) so Sheets can't strip leading zeros; `accountFields_()` only re-pads 10-digit values (the old mobile-number fix) for E-Wallet rows, never for banks. Bank numbers validate as 6-20 digits, e-wallet numbers as `^09\d{9}$`. `LIST_SUBMISSIONS_CACHE_KEY` was bumped to `_v3` and the admin `sessionStorage` list key to `payrollAdminList_v2` so stale cached rows without the new fields aren't shown. The Drive folder is still named "GCash Payroll Enrollment Attachments" on purpose (renaming would orphan existing files).
 
 The public form (`index.html`) collects First/Middle/Last Name (Middle optional) instead of a single Employee Name field, plus Birthday (date picker) and City/Province — both required. `Code.gs` keeps the "Employee Name" column and auto-populates it by joining the three name parts (`firstName + ' ' + middleName + ' ' + lastName`, skipping a blank middle name) on every submission, so anything that already reads that column (admin search, CSV export, the printed record's signature line, the Drive attachment filenames) keeps working unchanged. `admin.html`'s detail view, printed record, and CSV export show Birthday/City-Province as additional fields; the summary table intentionally does not gain new columns for them (deliberate scope decision, not an oversight).
 
