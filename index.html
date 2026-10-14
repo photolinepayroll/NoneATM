@@ -341,6 +341,63 @@
     line-height: 1.5;
     color: var(--brand-blue-dark);
   }
+
+  .crop-tools:not([hidden]) { margin: 8px 0; }
+  .crop-preview {
+    display: block;
+    max-width: 100%;
+    max-height: 220px;
+    margin: 8px 0;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+  }
+  .crop-btn {
+    background: #eee;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    margin: 0 8px 6px 0;
+    cursor: pointer;
+  }
+  .crop-btn--primary {
+    background: var(--brand-blue);
+    border-color: var(--brand-blue);
+    color: #fff;
+    font-weight: 700;
+  }
+  .crop-modal:not([hidden]) {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px;
+  }
+  .crop-modal-hint {
+    color: #fff;
+    font-size: 0.9rem;
+    margin: 0 0 8px;
+    text-align: center;
+  }
+  .crop-stage {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #cropCanvas {
+    touch-action: none;
+    max-width: 100%;
+    max-height: 100%;
+    cursor: crosshair;
+  }
+  .crop-modal-actions { padding-top: 10px; }
 </style>  </head>
   <body>
   </head>
@@ -430,6 +487,12 @@
 
           <input type="file" id="screenshot" name="screenshot" accept=".jpg,.jpeg,.png,.pdf" required aria-describedby="err-screenshot">
           <span class="error" id="err-screenshot"></span>
+          <div id="cropTools" class="crop-tools" hidden>
+            <img id="cropPreview" class="crop-preview" alt="Preview of your uploaded proof">
+            <p class="hint">Tip: crop the image so your <strong>Full Name</strong> and <strong>Account Number</strong> are large and easy to read.</p>
+            <button type="button" id="cropOpenBtn" class="crop-btn crop-btn--primary">Crop image</button>
+            <button type="button" id="cropResetBtn" class="crop-btn" hidden>Use original</button>
+          </div>
         </section>
 
         <section class="section">
@@ -496,6 +559,14 @@
       </div>
     </div>
 
+    <div id="cropModal" class="crop-modal" role="dialog" aria-modal="true" aria-label="Crop account proof" hidden>
+      <p class="crop-modal-hint">Drag on the image to select the area to keep (your Full Name and Account Number).</p>
+      <div class="crop-stage"><canvas id="cropCanvas"></canvas></div>
+      <div class="crop-modal-actions">
+        <button type="button" id="cropApplyBtn" class="crop-btn crop-btn--primary">Apply crop</button>
+        <button type="button" id="cropCancelBtn" class="crop-btn">Cancel</button>
+      </div>
+    </div>
     <script>
       (function () {
         var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbymTpTfNj8wlOVAJqArWqFB5AF1CUIpdHNRDq8gk2Hi0RnRoUipHQZEj7YZkCyWjbG12A/exec';
@@ -653,20 +724,177 @@
           return canvas.toDataURL() === blank.toDataURL();
         }
 
+
+        // ---- Optional crop of the account proof (images only) ----
+        var croppedScreenshotFile = null;
+        var cropSourceUrl = null;
+        var cropPreviewUrl = null;
+        var cropImg = null;
+        var cropSel = null;
+        var cropScale = 1;
+        var cropDrag = null;
+        var CROP_MIN = 40;
+        var cropModal = document.getElementById('cropModal');
+        var cropCanvas = document.getElementById('cropCanvas');
+        var cropCtx = cropCanvas.getContext('2d');
+
+        function currentScreenshotFile() {
+          return croppedScreenshotFile || document.getElementById('screenshot').files[0];
+        }
+
+        function refreshCropTools() {
+          var input = document.getElementById('screenshot');
+          var file = input.files[0];
+          var tools = document.getElementById('cropTools');
+          if (cropSourceUrl) { URL.revokeObjectURL(cropSourceUrl); cropSourceUrl = null; }
+          if (cropPreviewUrl) { URL.revokeObjectURL(cropPreviewUrl); cropPreviewUrl = null; }
+          croppedScreenshotFile = null;
+          document.getElementById('cropResetBtn').hidden = true;
+          if (!file || file.type === 'application/pdf') { tools.hidden = true; return; }
+          cropPreviewUrl = URL.createObjectURL(file);
+          document.getElementById('cropPreview').src = cropPreviewUrl;
+          tools.hidden = false;
+        }
+
+        function drawCrop() {
+          var w = cropCanvas.width, h = cropCanvas.height;
+          cropCtx.clearRect(0, 0, w, h);
+          cropCtx.drawImage(cropImg, 0, 0, w, h);
+          cropCtx.fillStyle = 'rgba(0,0,0,0.55)';
+          cropCtx.fillRect(0, 0, w, h);
+          if (!cropSel) return;
+          cropCtx.drawImage(cropImg, cropSel.x / cropScale, cropSel.y / cropScale, cropSel.w / cropScale, cropSel.h / cropScale, cropSel.x, cropSel.y, cropSel.w, cropSel.h);
+          cropCtx.strokeStyle = '#fff';
+          cropCtx.lineWidth = 2;
+          cropCtx.strokeRect(cropSel.x, cropSel.y, cropSel.w, cropSel.h);
+        }
+
+        function cropPoint(evt) {
+          var r = cropCanvas.getBoundingClientRect();
+          var x = (evt.clientX - r.left) * (cropCanvas.width / r.width);
+          var y = (evt.clientY - r.top) * (cropCanvas.height / r.height);
+          return { x: Math.max(0, Math.min(cropCanvas.width, x)), y: Math.max(0, Math.min(cropCanvas.height, y)) };
+        }
+
+        function cropHit(pt) {
+          if (!cropSel) return null;
+          var t = 24 * (cropCanvas.width / cropCanvas.getBoundingClientRect().width);
+          var l = Math.abs(pt.x - cropSel.x) < t, r = Math.abs(pt.x - (cropSel.x + cropSel.w)) < t;
+          var tp = Math.abs(pt.y - cropSel.y) < t, b = Math.abs(pt.y - (cropSel.y + cropSel.h)) < t;
+          var inX = pt.x > cropSel.x - t && pt.x < cropSel.x + cropSel.w + t;
+          var inY = pt.y > cropSel.y - t && pt.y < cropSel.y + cropSel.h + t;
+          if ((l || r) && inY || (tp || b) && inX) return { l: l, r: r, t: tp, b: b };
+          if (pt.x > cropSel.x && pt.x < cropSel.x + cropSel.w && pt.y > cropSel.y && pt.y < cropSel.y + cropSel.h) return { move: true };
+          return null;
+        }
+
+        cropCanvas.addEventListener('pointerdown', function (evt) {
+          evt.preventDefault();
+          cropCanvas.setPointerCapture(evt.pointerId);
+          var pt = cropPoint(evt);
+          var hit = cropHit(pt);
+          if (hit) {
+            cropDrag = { hit: hit, start: pt, orig: { x: cropSel.x, y: cropSel.y, w: cropSel.w, h: cropSel.h } };
+          } else {
+            cropDrag = { hit: 'new', start: pt };
+            cropSel = { x: pt.x, y: pt.y, w: 0, h: 0 };
+          }
+        });
+
+        cropCanvas.addEventListener('pointermove', function (evt) {
+          if (!cropDrag) return;
+          var pt = cropPoint(evt), W = cropCanvas.width, H = cropCanvas.height;
+          var d = cropDrag;
+          if (d.hit === 'new') {
+            cropSel = { x: Math.min(d.start.x, pt.x), y: Math.min(d.start.y, pt.y), w: Math.abs(pt.x - d.start.x), h: Math.abs(pt.y - d.start.y) };
+          } else if (d.hit.move) {
+            var nx = d.orig.x + pt.x - d.start.x, ny = d.orig.y + pt.y - d.start.y;
+            cropSel.x = Math.max(0, Math.min(W - d.orig.w, nx));
+            cropSel.y = Math.max(0, Math.min(H - d.orig.h, ny));
+          } else {
+            var x1 = d.orig.x, y1 = d.orig.y, x2 = d.orig.x + d.orig.w, y2 = d.orig.y + d.orig.h;
+            if (d.hit.l) x1 = Math.min(pt.x, x2 - CROP_MIN);
+            if (d.hit.r) x2 = Math.max(pt.x, x1 + CROP_MIN);
+            if (d.hit.t) y1 = Math.min(pt.y, y2 - CROP_MIN);
+            if (d.hit.b) y2 = Math.max(pt.y, y1 + CROP_MIN);
+            cropSel = { x: Math.max(0, x1), y: Math.max(0, y1), w: Math.min(W, x2) - Math.max(0, x1), h: Math.min(H, y2) - Math.max(0, y1) };
+          }
+          drawCrop();
+        });
+
+        function endCropDrag() { cropDrag = null; }
+        cropCanvas.addEventListener('pointerup', endCropDrag);
+        cropCanvas.addEventListener('pointercancel', endCropDrag);
+
+        document.getElementById('cropOpenBtn').addEventListener('click', function () {
+          var file = document.getElementById('screenshot').files[0];
+          if (!file) return;
+          if (cropSourceUrl) URL.revokeObjectURL(cropSourceUrl);
+          cropSourceUrl = URL.createObjectURL(file);
+          var img = new Image();
+          img.onload = function () {
+            cropImg = img;
+            cropModal.hidden = false;
+            var maxW = Math.min(window.innerWidth - 24, 1000);
+            var maxH = window.innerHeight - 130;
+            cropScale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+            cropCanvas.width = Math.round(img.naturalWidth * cropScale);
+            cropCanvas.height = Math.round(img.naturalHeight * cropScale);
+            cropSel = null;
+            drawCrop();
+          };
+          img.onerror = function () { setError('screenshot', 'Could not open this image for cropping. You can still submit it as-is.'); };
+          img.src = cropSourceUrl;
+        });
+
+        document.getElementById('cropCancelBtn').addEventListener('click', function () { cropModal.hidden = true; });
+
+        document.getElementById('cropApplyBtn').addEventListener('click', function () {
+          if (!cropSel || cropSel.w < CROP_MIN || cropSel.h < CROP_MIN) {
+            alert('Drag on the image to select the area to keep.');
+            return;
+          }
+          var sx = Math.round(cropSel.x / cropScale), sy = Math.round(cropSel.y / cropScale);
+          var sw = Math.min(cropImg.naturalWidth - sx, Math.round(cropSel.w / cropScale));
+          var sh = Math.min(cropImg.naturalHeight - sy, Math.round(cropSel.h / cropScale));
+          var out = document.createElement('canvas');
+          out.width = sw; out.height = sh;
+          out.getContext('2d').drawImage(cropImg, sx, sy, sw, sh, 0, 0, sw, sh);
+          var orig = document.getElementById('screenshot').files[0];
+          var type = orig.type === 'image/png' ? 'image/png' : 'image/jpeg';
+          out.toBlob(function (blob) {
+            if (!blob) { setError('screenshot', 'Could not crop this image. You can still submit it as-is.'); cropModal.hidden = true; return; }
+            if (blob.size > MAX_FILE_SIZE_BYTES) { setError('screenshot', 'Cropped image is larger than 10MB. Please crop a smaller area.'); return; }
+            setError('screenshot', '');
+            croppedScreenshotFile = new File([blob], orig.name, { type: type });
+            if (cropPreviewUrl) URL.revokeObjectURL(cropPreviewUrl);
+            cropPreviewUrl = URL.createObjectURL(croppedScreenshotFile);
+            document.getElementById('cropPreview').src = cropPreviewUrl;
+            document.getElementById('cropResetBtn').hidden = false;
+            cropModal.hidden = true;
+          }, type, 0.92);
+        });
+
+        document.getElementById('cropResetBtn').addEventListener('click', function () {
+          refreshCropTools();
+        });
+
         document.getElementById('screenshot').addEventListener('change', function (evt) {
           setError('screenshot', '');
           var file = evt.target.files[0];
-          if (!file) return;
+          if (!file) { refreshCropTools(); return; }
           var ext = file.name.split('.').pop().toLowerCase();
           if (ALLOWED_EXTENSIONS.indexOf(ext) === -1) {
             setError('screenshot', 'File must be JPG, PNG, or PDF.');
             evt.target.value = '';
+            refreshCropTools();
             return;
           }
           if (file.size > MAX_FILE_SIZE_BYTES) {
             setError('screenshot', 'File must be 10MB or smaller.');
             evt.target.value = '';
           }
+          refreshCropTools();
         });
 
         document.getElementById('enrollmentForm').addEventListener('submit', function (evt) {
@@ -687,7 +915,7 @@
           var accountName = document.getElementById('accountName').value.trim();
           var declarationAccepted = document.getElementById('declarationAccepted').checked;
           var screenshotInput = document.getElementById('screenshot');
-          var screenshotFile = screenshotInput.files[0];
+          var screenshotFile = currentScreenshotFile();
 
           var valid = true;
           if (!firstName) { setError('firstName', 'Required.'); valid = false; }
