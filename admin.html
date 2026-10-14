@@ -1167,11 +1167,11 @@
           }
         }
 
-        function refreshSubmissions(quiet) {
+        function refreshSubmissions(quiet, fresh) {
           if (!quiet) {
             renderSkeletonRows();
           }
-          return callBackend('listSubmissions', {}).then(function (rows) {
+          return callBackend('listSubmissions', fresh ? { fresh: true } : {}).then(function (rows) {
             allRows = rows;
             saveListToSession(rows);
             populateBranchFilter(rows);
@@ -1221,7 +1221,7 @@
           btn.disabled = true;
           btn.querySelector('.btn-icon').classList.add('spinning');
           btn.querySelector('.btn-label').textContent = 'Refreshing...';
-          refreshSubmissions()
+          refreshSubmissions(false, true)
             .catch(function (err) {
               alert('Could not refresh: ' + err.message);
             })

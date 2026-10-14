@@ -104,7 +104,7 @@ function doPost(e) {
     return jsonResponse_(safeAdminCall_(function () { requireAdmin_(body.passcode); return true; }));
   }
   if (body.action === 'listSubmissions') {
-    return jsonResponse_(safeAdminCall_(function () { return listSubmissions(body.passcode); }));
+    return jsonResponse_(safeAdminCall_(function () { return listSubmissions(body.passcode, body.fresh === true); }));
   }
   if (body.action === 'getSubmissionsFields') {
     return jsonResponse_(safeAdminCall_(function () { return getSubmissionsFields(body.passcode, body.rowIndexes); }));
@@ -303,11 +303,14 @@ function requireAdmin_(passcode) {
   }
 }
 
-function listSubmissions(passcode) {
+// fresh=true (the dashboard's Refresh button) skips the cache read so rows
+// deleted/edited directly in the Sheet show up immediately; the fresh result
+// is still written back to the cache for subsequent loads.
+function listSubmissions(passcode, fresh) {
   requireAdmin_(passcode);
 
   var cache = CacheService.getScriptCache();
-  var cached = getCachedListSubmissions_(cache);
+  var cached = fresh ? null : getCachedListSubmissions_(cache);
   if (cached) {
     return cached;
   }
