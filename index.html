@@ -378,10 +378,19 @@
   }
   .crop-modal-hint {
     color: #fff;
-    font-size: 0.9rem;
+    background: var(--brand-blue);
+    border-radius: 8px;
+    font-size: 1.02rem;
+    line-height: 1.35;
     margin: 0 0 8px;
-    text-align: center;
+    padding: 10px 14px;
+    width: 100%;
+    max-width: 1000px;
+    box-sizing: border-box;
   }
+  .crop-modal-hint ol { margin: 4px 0 4px 1.2em; padding: 0; }
+  .crop-modal-sub { font-size: 0.82rem; opacity: 0.9; }
+  .crop-modal-actions .crop-btn { min-height: 48px; }
   .crop-stage {
     position: relative;
     flex: 1 1 auto;
@@ -498,7 +507,7 @@
           <div id="cropTools" class="crop-tools" hidden>
             <img id="cropPreview" class="crop-preview" alt="Preview of your uploaded proof">
             <p class="hint">Make sure your <strong>Full Name</strong> and <strong>Account Number</strong> are large and easy to read, or crop again.</p>
-            <button type="button" id="cropOpenBtn" class="crop-btn crop-btn--primary">Crop again</button>
+            <button type="button" id="cropOpenBtn" class="crop-btn crop-btn--primary">Adjust crop</button>
           </div>
         </section>
 
@@ -567,7 +576,15 @@
     </div>
 
     <div id="cropModal" class="crop-modal" role="dialog" aria-modal="true" aria-label="Crop account proof" hidden>
-      <p class="crop-modal-hint">Drag the box to keep only your Full Name and Account Number, then tap Apply crop. Zoom in with the slider or by pinching (two fingers also move the picture).</p>
+      <div class="crop-modal-hint">
+        <strong>Crop your proof</strong>
+        <ol>
+          <li>Drag the <b>corners or edges</b> of the box to frame your <b>Full Name</b> and <b>Account Number</b>.</li>
+          <li>Drag <b>inside</b> the box to move it.</li>
+          <li>Tap <b>Apply crop</b>.</li>
+        </ol>
+        <span class="crop-modal-sub">Zoom with the slider or by pinching (two fingers also move the picture).</span>
+      </div>
       <div class="crop-stage"><canvas id="cropCanvas"></canvas></div>
       <div class="crop-zoom">
         <button type="button" id="cropZoomOut" class="crop-btn" aria-label="Zoom out">&minus;</button>
@@ -577,6 +594,7 @@
       </div>
       <div class="crop-modal-actions">
         <button type="button" id="cropApplyBtn" class="crop-btn crop-btn--primary">Apply crop</button>
+        <button type="button" id="cropWholeBtn" class="crop-btn">Use whole image</button>
         <button type="button" id="cropCancelBtn" class="crop-btn">Cancel</button>
       </div>
     </div>
@@ -776,10 +794,48 @@
           cropCtx.fillRect(0, 0, w, h);
           if (!cropSel) return;
           cropCtx.drawImage(cropImg, cropSel.x / cropScale, cropSel.y / cropScale, cropSel.w / cropScale, cropSel.h / cropScale, cropSel.x, cropSel.y, cropSel.w, cropSel.h);
-          cropCtx.strokeStyle = '#fff';
-          cropCtx.lineWidth = 2;
-          cropCtx.strokeRect(cropSel.x, cropSel.y, cropSel.w, cropSel.h);
+          var k = w / (cropCanvas.getBoundingClientRect().width || w); // canvas units per screen px
+          var s = cropSel;
+          // rule-of-thirds guides
+          cropCtx.strokeStyle = 'rgba(255,255,255,0.45)';
+          cropCtx.lineWidth = k;
+          cropCtx.beginPath();
+          for (var i = 1; i < 3; i++) {
+            cropCtx.moveTo(s.x + s.w * i / 3, s.y); cropCtx.lineTo(s.x + s.w * i / 3, s.y + s.h);
+            cropCtx.moveTo(s.x, s.y + s.h * i / 3); cropCtx.lineTo(s.x + s.w, s.y + s.h * i / 3);
+          }
+          cropCtx.stroke();
+          // border: dark outline under a white line so it reads on any screenshot
+          cropCtx.strokeStyle = 'rgba(0,0,0,0.7)';
+          cropCtx.lineWidth = 5 * k;
+          cropCtx.strokeRect(s.x, s.y, s.w, s.h);
+          cropCtx.strokeStyle = cropPulse ? '#ffd23f' : '#fff';
+          cropCtx.lineWidth = 3 * k;
+          cropCtx.strokeRect(s.x, s.y, s.w, s.h);
+          // square handles at corners and edge midpoints
+          var hs = 14 * k, xs = [s.x, s.x + s.w / 2, s.x + s.w], ys = [s.y, s.y + s.h / 2, s.y + s.h];
+          cropCtx.fillStyle = '#fff';
+          cropCtx.strokeStyle = 'rgba(0,0,0,0.8)';
+          cropCtx.lineWidth = 1.5 * k;
+          for (var a = 0; a < 3; a++) {
+            for (var b = 0; b < 3; b++) {
+              if (a === 1 && b === 1) continue;
+              cropCtx.fillRect(xs[a] - hs / 2, ys[b] - hs / 2, hs, hs);
+              cropCtx.strokeRect(xs[a] - hs / 2, ys[b] - hs / 2, hs, hs);
+            }
+          }
+          // label chip
+          var fs = 13 * k, label = 'Keep this part';
+          cropCtx.font = '700 ' + fs + 'px sans-serif';
+          var tw = cropCtx.measureText(label).width + 12 * k, th = fs + 8 * k;
+          var ly = s.y - th - 4 * k < 0 ? s.y + 4 * k : s.y - th - 4 * k;
+          cropCtx.fillStyle = '#1565c0';
+          cropCtx.fillRect(s.x, ly, tw, th);
+          cropCtx.fillStyle = '#fff';
+          cropCtx.textBaseline = 'middle';
+          cropCtx.fillText(label, s.x + 6 * k, ly + th / 2);
         }
+        var cropPulse = false;
 
         function cropPoint(evt) {
           var r = cropCanvas.getBoundingClientRect();
@@ -879,7 +935,14 @@
             cropPinch.last = m;
             return;
           }
-          if (!cropDrag) return;
+          if (!cropDrag) {
+            var hv = cropHit(cropPoint(evt));
+            cropCanvas.style.cursor = !hv ? 'crosshair' : hv.move ? 'move'
+              : (hv.l && hv.t) || (hv.r && hv.b) ? 'nwse-resize'
+              : (hv.r && hv.t) || (hv.l && hv.b) ? 'nesw-resize'
+              : (hv.l || hv.r) ? 'ew-resize' : 'ns-resize';
+            return;
+          }
           var pt = cropPoint(evt), W = cropCanvas.width, H = cropCanvas.height;
           var d = cropDrag;
           if (d.hit === 'new') {
@@ -922,7 +985,7 @@
             cropImg = img;
             cropModal.hidden = false;
             var maxW = Math.min(window.innerWidth - 24, 1000);
-            var maxH = window.innerHeight - 130;
+            var maxH = window.innerHeight - 130 - (document.querySelector('.crop-modal-hint').offsetHeight || 0);
             cropScale = cropFit = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
             // cap the zoomed canvas to ~16M pixels so phones don't run out of canvas memory
             cropMaxScale = Math.max(cropFit, Math.min(cropFit * 6, Math.sqrt(16e6 / (img.naturalWidth * img.naturalHeight))));
@@ -934,8 +997,20 @@
             cropStage.scrollLeft = 0; cropStage.scrollTop = 0;
             cropCanvas.width = Math.round(img.naturalWidth * cropScale);
             cropCanvas.height = Math.round(img.naturalHeight * cropScale);
-            cropSel = { x: 0, y: 0, w: cropCanvas.width, h: cropCanvas.height };
+            // start with an inset box so the dimmed outside area shows there is something to adjust
+            var iw = Math.max(CROP_MIN, Math.round(cropCanvas.width * 0.8)), ih = Math.max(CROP_MIN, Math.round(cropCanvas.height * 0.55));
+            iw = Math.min(iw, cropCanvas.width); ih = Math.min(ih, cropCanvas.height);
+            cropSel = { x: Math.round((cropCanvas.width - iw) / 2), y: Math.round((cropCanvas.height - ih) / 2), w: iw, h: ih };
+            cropCanvas.style.cursor = 'crosshair';
             drawCrop();
+            if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+              var pulses = 0;
+              var pulseTimer = setInterval(function () {
+                cropPulse = !cropPulse;
+                if (++pulses >= 6 || cropModal.hidden) { clearInterval(pulseTimer); cropPulse = false; }
+                if (cropSel && !cropModal.hidden) drawCrop();
+              }, 250);
+            }
           };
           img.onerror = function () { setError('screenshot', 'Could not open this image for cropping. You can still submit it as-is.'); };
           img.src = cropSourceUrl;
@@ -950,6 +1025,11 @@
             document.getElementById('screenshot').value = '';
             refreshCropTools();
           }
+        });
+
+        document.getElementById('cropWholeBtn').addEventListener('click', function () {
+          cropSel = { x: 0, y: 0, w: cropCanvas.width, h: cropCanvas.height };
+          document.getElementById('cropApplyBtn').click();
         });
 
         document.getElementById('cropApplyBtn').addEventListener('click', function () {
