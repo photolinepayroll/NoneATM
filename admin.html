@@ -675,6 +675,7 @@
         width: 100%;
         max-width: 460px;
         max-height: 320px;
+        object-fit: contain;
         margin: 0 auto;
         border: 1px solid #eef0f5;
         border-radius: 8px;
@@ -684,10 +685,12 @@
         display: block;
       }
 
-      .screenshot-image--crop {
-        aspect-ratio: 16 / 10;
-        object-fit: cover;
-        object-position: top left;
+      /* Portrait proofs (phone screenshots) are shown whole, never cropped:
+         the account number can be anywhere on them. */
+      .screenshot-image--portrait {
+        width: auto;
+        max-width: 100%;
+        max-height: 520px;
       }
 
       #loginError {
@@ -778,7 +781,7 @@
 
         .verified-screenshot-block {
           margin-top: 8px;
-          max-height: 220px;
+          max-height: 330px;
           overflow: hidden;
           page-break-inside: avoid;
         }
@@ -787,8 +790,33 @@
           margin-bottom: 4px;
         }
         .screenshot-image {
-          max-width: 320px;
-          max-height: 200px;
+          max-width: 100%;
+          max-height: 300px;
+        }
+
+        /* Portrait proof: whole screenshot in a right-hand column beside the
+           record so the account number stays visible and legible. */
+        .admin-card.has-portrait-proof {
+          display: grid;
+          grid-template-columns: 1fr 3.4in;
+          column-gap: 16px;
+          align-items: start;
+        }
+        .admin-card.has-portrait-proof .record-header {
+          grid-column: 1 / -1;
+        }
+        .admin-card.has-portrait-proof .record-main {
+          grid-column: 1;
+        }
+        .admin-card.has-portrait-proof .verified-screenshot-block {
+          grid-column: 2;
+          grid-row: 2;
+          margin-top: 0;
+          max-height: 7.6in;
+        }
+        .admin-card.has-portrait-proof .screenshot-image {
+          max-width: 3.4in;
+          max-height: 7.4in;
         }
       }
     </style>
@@ -926,6 +954,7 @@
             <p class="purpose">Photoline Enterprises Corporation</p>
           </div>
 
+          <div class="record-main">
           <div class="record-field"><span class="label">Date Submitted</span><span id="d-timestamp"></span></div>
           <div class="record-field"><span class="label">Employee Name</span><span id="d-employeeName"></span></div>
           <div class="record-field"><span class="label">Birthday</span><span id="d-birthday"></span></div>
@@ -952,6 +981,8 @@
 
           <p id="d-media-loading" class="media-loading" hidden><span class="media-spinner" aria-hidden="true"></span>Loading screenshot &amp; signature&hellip;</p>
           <p id="d-media-error" class="media-error" hidden>Could not load the screenshot/signature. <a href="#" class="retry-media-link" id="d-media-retry">Retry</a></p>
+
+          </div>
 
           <div class="verified-screenshot-block">
             <span class="label">Account Proof</span>
@@ -980,6 +1011,7 @@
           <p class="purpose">Photoline Enterprises Corporation</p>
         </div>
 
+        <div class="record-main">
         <div class="record-field"><span class="label">Date Submitted</span><span class="f-timestamp"></span></div>
         <div class="record-field"><span class="label">Employee Name</span><span class="f-employeeName"></span></div>
         <div class="record-field"><span class="label">Birthday</span><span class="f-birthday"></span></div>
@@ -1006,6 +1038,8 @@
 
         <p class="media-loading f-media-loading" hidden><span class="media-spinner" aria-hidden="true"></span>Loading screenshot &amp; signature&hellip;</p>
         <p class="media-error f-media-error" hidden>Could not load the screenshot/signature. <a href="#" class="retry-media-link">Retry</a></p>
+
+        </div>
 
         <div class="verified-screenshot-block">
           <span class="label">Account Proof</span>
@@ -1473,10 +1507,13 @@
         }
 
         function setScreenshotImageFromDataUrl(img, dataUrl) {
-          img.classList.remove('screenshot-image--crop');
+          var card = img.closest('.admin-card');
+          img.classList.remove('screenshot-image--portrait');
+          if (card) card.classList.remove('has-portrait-proof');
           img.onload = function () {
             if (img.naturalWidth && img.naturalHeight && img.naturalWidth / img.naturalHeight < 1) {
-              img.classList.add('screenshot-image--crop');
+              img.classList.add('screenshot-image--portrait');
+              if (card) card.classList.add('has-portrait-proof');
             }
           };
           img.src = dataUrl;
