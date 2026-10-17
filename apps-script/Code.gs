@@ -84,7 +84,7 @@ function doGet(e) {
   var isAdmin = e && e.parameter && e.parameter.page === 'admin';
   return HtmlService.createTemplateFromFile(isAdmin ? 'Admin' : 'Index')
     .evaluate()
-    .setTitle(isAdmin ? 'Payroll Enrollment - Admin' : 'Payroll Enrollment Form')
+    .setTitle(isAdmin ? 'Disbursement Account Enrollment - Admin' : 'Disbursement Account Enrollment Form')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
