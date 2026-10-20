@@ -479,7 +479,7 @@
           <input type="text" id="middleName" name="middleName" aria-describedby="err-middleName">
           <label class="checkbox-label" style="margin-top:6px;">
             <input type="checkbox" id="noMiddleName">
-            <span>I have no middle name</span>
+            <span>I have &quot;<strong>NO</strong> Middle Name&quot;</span>
           </label>
           <span class="error" id="err-middleName"></span>
 
@@ -1162,7 +1162,7 @@
 
           var valid = true;
           if (!firstName) { setError('firstName', 'Required.'); valid = false; }
-          if (!noMiddleName && !middleName) { setError('middleName', 'Enter your middle name, or tick "I have no middle name".'); valid = false; }
+          if (!noMiddleName && !middleName) { setError('middleName', 'Enter your middle name, or tick "I have NO Middle Name".'); valid = false; }
           if (!lastName) { setError('lastName', 'Required.'); valid = false; }
           if (!birthday) { setError('birthday', 'Required.'); valid = false; }
           if (!cityProvince) { setError('cityProvince', 'Required.'); valid = false; }
