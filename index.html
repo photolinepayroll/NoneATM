@@ -475,8 +475,12 @@
           <input type="text" id="firstName" name="firstName" required aria-describedby="err-firstName">
           <span class="error" id="err-firstName"></span>
 
-          <label for="middleName">Middle Name</label>
+          <label for="middleName">Middle Name <span class="required" aria-hidden="true">*</span></label>
           <input type="text" id="middleName" name="middleName" aria-describedby="err-middleName">
+          <label class="checkbox-label" style="margin-top:6px;">
+            <input type="checkbox" id="noMiddleName">
+            <span>I have no middle name</span>
+          </label>
           <span class="error" id="err-middleName"></span>
 
           <label for="lastName">Last Name <span class="required" aria-hidden="true">*</span></label>
@@ -712,6 +716,18 @@
         canvas.addEventListener('touchstart', startDraw, { passive: false });
         canvas.addEventListener('touchmove', moveDraw, { passive: false });
         canvas.addEventListener('touchend', endDraw);
+
+        document.getElementById('noMiddleName').addEventListener('change', function () {
+          var mid = document.getElementById('middleName');
+          if (this.checked) {
+            mid.value = '';
+            mid.disabled = true;
+            setError('middleName', '');
+          } else {
+            mid.disabled = false;
+            mid.focus();
+          }
+        });
 
         document.getElementById('clearSignature').addEventListener('click', function () {
           ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1128,7 +1144,8 @@
           clearErrors();
 
           var firstName = document.getElementById('firstName').value.trim();
-          var middleName = document.getElementById('middleName').value.trim();
+          var noMiddleName = document.getElementById('noMiddleName').checked;
+          var middleName = noMiddleName ? '' : document.getElementById('middleName').value.trim();
           var lastName = document.getElementById('lastName').value.trim();
           var birthday = document.getElementById('birthday').value.trim();
           var cityProvince = document.getElementById('cityProvince').value.trim();
@@ -1145,6 +1162,7 @@
 
           var valid = true;
           if (!firstName) { setError('firstName', 'Required.'); valid = false; }
+          if (!noMiddleName && !middleName) { setError('middleName', 'Enter your middle name, or tick "I have no middle name".'); valid = false; }
           if (!lastName) { setError('lastName', 'Required.'); valid = false; }
           if (!birthday) { setError('birthday', 'Required.'); valid = false; }
           if (!cityProvince) { setError('cityProvince', 'Required.'); valid = false; }
@@ -1172,7 +1190,7 @@
           if (!valid) return;
 
           document.getElementById('review-firstName').textContent = firstName;
-          document.getElementById('review-middleName').textContent = middleName;
+          document.getElementById('review-middleName').textContent = noMiddleName ? 'None' : middleName;
           document.getElementById('review-lastName').textContent = lastName;
           document.getElementById('review-birthday').textContent = birthday;
           document.getElementById('review-cityProvince').textContent = cityProvince;
