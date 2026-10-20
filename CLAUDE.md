@@ -81,6 +81,12 @@ The printed enrollment record (`#detailSection` → `.admin-card` in `admin.html
 
 If asked to touch the print layout again, budget roughly: Letter page minus 0.5in margins ≈ 960px usable height at 96dpi; current per-element sizes are tuned to fit comfortably under that with the screenshot included — check current `@media print` values in `admin.html` before changing them blind.
 
+## Public form rules worth knowing (index.html)
+
+- **Proof upload:** max **3MB**, JPG/PNG/PDF. The limit lives in *two* places that must agree: `MAX_FILE_SIZE_BYTES` in `index.html` and in `apps-script/Code.gs` (plus the hint text and the two client error strings). Accepted proofs: app screenshot with account number, passbook first page, deposit slip with name + account number. Photos of the physical card are called out as not valid (wording only - nothing detects it).
+- **Review step** (`#reviewSection`): shows a double-check warning, highlights the account fields, previews proof + signature, and has Edit details / Replace proof / Re-sign buttons (`data-edit-target` -> `backToForm(id)`). The form is only hidden, never reset, so edits keep all state; re-clicking Review rebuilds the panel from current values.
+- **Middle Name is required** unless the `#noMiddleName` checkbox (`I have "NO Middle Name"`) is ticked; ticking clears/disables the input and the payload sends `middleName: ''` (backend already tolerates blank and skips it when building Employee Name).
+
 ## Conventions observed in this codebase
 
 - No build step — `index.html` and `admin.html` are single self-contained files (inline `<style>`/`<script>`, base64-embedded logo). Editing them means editing one big file; use `grep`/line-number lookups rather than reading the whole file (the embedded base64 logo makes naive full-file reads blow past tool size limits).
