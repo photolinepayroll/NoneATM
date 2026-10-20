@@ -226,6 +226,47 @@
     color: #444;
   }
 
+  .review-warning {
+    background: #fff4e5;
+    border: 2px solid #d93025;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin: 12px 0;
+    font-size: 0.95rem;
+    color: #7a1a12;
+  }
+
+  .review-field--key {
+    background: #fffbe6;
+    padding: 10px 8px;
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+
+  .review-card {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 12px;
+    margin: 14px 0;
+  }
+
+  .review-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .review-edit-link {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
   .review-screenshot-image,
   .review-signature-image {
     display: block;
@@ -541,6 +582,9 @@
       <section id="reviewSection" class="section" hidden>
         <h2>Review Your Submission</h2>
         <p class="hint">Please check your details carefully. Click "Edit" to go back and make changes, or "Confirm &amp; Submit" if everything is correct.</p>
+        <div class="review-warning" role="alert"><strong>Please double-check your Account Number and Account Name.</strong> Payments will be sent to this account. Wrong details can cause failed or misdirected payments. Also make sure your proof and signature below are clear.
+          <div style="margin-top:8px;"><button type="button" class="review-edit-link" data-edit-target="firstName">Edit details</button></div>
+        </div>
 
         <div class="review-field"><span class="review-label">First Name</span><span id="review-firstName"></span></div>
         <div class="review-field"><span class="review-label">Middle Name</span><span id="review-middleName"></span></div>
@@ -549,18 +593,23 @@
         <div class="review-field"><span class="review-label">City/Province</span><span id="review-cityProvince"></span></div>
         <div class="review-field"><span class="review-label">Branch/Department</span><span id="review-branchDepartment"></span></div>
         <div class="review-field"><span class="review-label">Contact Number</span><span id="review-contactNumber"></span></div>
-        <div class="review-field"><span class="review-label">Account Type</span><span id="review-accountType"></span></div>
-        <div class="review-field"><span class="review-label">Bank / E-Wallet Name</span><span id="review-bankName"></span></div>
-        <div class="review-field"><span class="review-label">Account Number</span><span id="review-accountNumber"></span></div>
-        <div class="review-field"><span class="review-label">Account Name</span><span id="review-accountName"></span></div>
+        <div class="review-field review-field--key"><span class="review-label">Account Type</span><span id="review-accountType"></span></div>
+        <div class="review-field review-field--key"><span class="review-label">Bank / E-Wallet Name</span><span id="review-bankName"></span></div>
+        <div class="review-field review-field--key"><span class="review-label">Account Number</span><span id="review-accountNumber"></span></div>
+        <div class="review-field review-field--key"><span class="review-label">Account Name</span><span id="review-accountName"></span></div>
         <div class="review-field"><span class="review-label">Declaration</span><span>Accepted</span></div>
 
-        <p class="review-label" style="margin-top:14px;">Uploaded Account Proof</p>
-        <img id="review-screenshot" class="review-screenshot-image" hidden>
-        <p id="review-screenshot-note" class="hint" hidden></p>
+        <div class="review-card">
+          <div class="review-card-head"><span class="review-label">Uploaded Account Proof</span><button type="button" class="review-edit-link" data-edit-target="screenshot">Replace proof</button></div>
+          <p class="hint">Make sure your Full Name and Account Number are clearly readable.</p>
+          <img id="review-screenshot" class="review-screenshot-image" alt="Preview of your uploaded proof" hidden>
+          <p id="review-screenshot-note" class="hint" hidden></p>
+        </div>
 
-        <p class="review-label" style="margin-top:14px;">Signature</p>
-        <img id="review-signature" class="review-signature-image">
+        <div class="review-card">
+          <div class="review-card-head"><span class="review-label">Your e-Signature</span><button type="button" class="review-edit-link" data-edit-target="signaturePad">Re-sign</button></div>
+          <img id="review-signature" class="review-signature-image" alt="Preview of your signature">
+        </div>
 
         <span class="error" id="err-review"></span>
 
@@ -1170,10 +1219,19 @@
           document.getElementById('reviewSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
 
-        document.getElementById('editBtn').addEventListener('click', function () {
+        function backToForm(targetId) {
           document.getElementById('reviewSection').hidden = true;
           document.getElementById('enrollmentForm').hidden = false;
-          document.getElementById('enrollmentForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          var target = targetId && document.getElementById(targetId);
+          var scrollTo = target ? (target.closest('.field, .section') || target) : document.getElementById('enrollmentForm');
+          scrollTo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          if (target && target.focus && targetId !== 'screenshot') { try { target.focus({ preventScroll: true }); } catch (e) {} }
+        }
+
+        document.getElementById('editBtn').addEventListener('click', function () { backToForm(); });
+
+        Array.prototype.forEach.call(document.querySelectorAll('[data-edit-target]'), function (btn) {
+          btn.addEventListener('click', function () { backToForm(btn.getAttribute('data-edit-target')); });
         });
 
         document.getElementById('confirmSubmitBtn').addEventListener('click', function () {
