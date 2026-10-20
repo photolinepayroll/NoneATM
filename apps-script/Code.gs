@@ -20,7 +20,7 @@ const SHEET_HEADERS = [
 ];
 const ACCOUNT_TYPES = ['Bank', 'E-Wallet'];
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024; // 3 MB
 const LIST_SUBMISSIONS_CACHE_KEY = 'listSubmissions_v3';
 // Safe to be long: submitForm calls invalidateListSubmissionsCache_() on every
 // new submission. (Edits made directly in the Sheet won't show until this
@@ -241,7 +241,7 @@ function validateSubmission_(formData) {
     }
     var sizeBytes = Math.ceil(formData.screenshotBase64.length * 3 / 4);
     if (sizeBytes > MAX_FILE_SIZE_BYTES) {
-      errors.push('Screenshot must be 10MB or smaller.');
+      errors.push('Screenshot must be 3MB or smaller.');
     }
   }
 

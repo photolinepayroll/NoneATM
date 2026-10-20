@@ -489,8 +489,8 @@
           <h2>Section 2 &ndash; Account Verification</h2>
           <label for="screenshot">Upload Verified Screenshot or Photo of Your <span class="highlight-own">OWN</span> Bank Account / E-Wallet <span class="required" aria-hidden="true">*</span></label>
           <p class="hint">Please upload a screenshot or photo of your <span class="highlight-own">own</span> bank account or e-wallet (a screenshot of your banking / e-wallet app showing your account number, a passbook first page, or a deposit slip that shows your name and account number). It must clearly display your Full Name and Account Number. Only proof of your <span class="highlight-own">own</span> account will be accepted. Proof belonging to another person will not be accepted.</p>
-          <p class="hint"><strong class="highlight-own">Not valid:</strong> a photo of the physical card (ATM / debit / credit card) showing the card number. Only a screenshot of your account number with your Full Name, a passbook first page, or a deposit slip showing your name and account number is accepted.</p>
-          <p class="hint">Allowed file types: JPG, PNG, PDF. Maximum size: 10MB.</p>
+          <p class="hint"><strong class="highlight-own">Not valid:</strong> a photo of the physical card (ATM / debit / credit card) showing the card number.</p>
+          <p class="hint">Allowed file types: JPG, PNG, PDF. Maximum size: 3MB.</p>
 
           <p class="screenshot-sample-caption">Sample of a valid screenshot:</p>
           <div class="screenshot-sample-card">
@@ -724,7 +724,7 @@
         }
 
         var ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'pdf'];
-        var MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+        var MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024;
 
         function readFileAsBase64(file) {
           return new Promise(function (resolve, reject) {
@@ -1043,7 +1043,7 @@
           var type = orig.type === 'image/png' ? 'image/png' : 'image/jpeg';
           out.toBlob(function (blob) {
             if (!blob) { setError('screenshot', 'Could not crop this image. You can still submit it as-is.'); cropModal.hidden = true; return; }
-            if (blob.size > MAX_FILE_SIZE_BYTES) { setError('screenshot', 'Cropped image is larger than 10MB. Please crop a smaller area.'); return; }
+            if (blob.size > MAX_FILE_SIZE_BYTES) { setError('screenshot', 'Cropped image is larger than 3MB. Please crop a smaller area.'); return; }
             setError('screenshot', '');
             croppedScreenshotFile = new File([blob], orig.name, { type: type });
             if (cropPreviewUrl) URL.revokeObjectURL(cropPreviewUrl);
@@ -1065,7 +1065,7 @@
             return;
           }
           if (file.size > MAX_FILE_SIZE_BYTES) {
-            setError('screenshot', 'File must be 10MB or smaller.');
+            setError('screenshot', 'File must be 3MB or smaller.');
             evt.target.value = '';
             refreshCropTools();
             return;
